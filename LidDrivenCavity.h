@@ -28,8 +28,9 @@ public:
     /// Calculate grid space
     void GridSpace();
     /// Construct constant matrices for computing
-    void LinearMatrices(double *A, *B, *C);
-
+    void LinearMatrices();	
+    /// extract interior vector from whole matrix for solving linear system 
+    void Extract();
 
 
     /// Initialise the flow quantities
@@ -39,16 +40,20 @@ public:
 
 
     /// Calculate vorticity in ghost cells
-    void VorticityBCs(int U);
+    void VorticityBCs();
     /// Calculate interior vorticity at time t
     void VorticityInterior();
-    /// Update interior vorticity;
+    /// Update interior vorticity
     void VorticityUpdate();
+    /// Possion solver, to be separated later
+    void PossionSolver();
 
     
 private:
     double *v = nullptr;   ///< vorticity matrix stored in row major
     double *s = nullptr;   ///<	stream function matrix stored in row major
+    double *v_int = nullptr; ///< interior vorticity matrix
+    double *s_int = nullptr; ///< interior stream function matrix
 
     double dt;             ///< time step size
     double T;              ///< terminal time

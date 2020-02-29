@@ -1,5 +1,6 @@
 #include <iostream>
 #include <exception>
+#include <iomanip>
 using namespace std;
 
 #include "LidDrivenCavity.h"
@@ -8,17 +9,17 @@ int main(int argc, char **argv)
 {
     /// Parameters from command input
     double Lx = 1, Ly = 1;
-    int Nx = 21, Ny = 21;
+    int Nx = 10, Ny = 10;
     int Px = 1, Py = 1;
-    double dt = 0.01;
-    double T = 5.0;
+    double dt = 0.1;
+    double T = 10.0;
     double Re = 100;
 
     /// Parameters for each partition
     double xlen = Lx/Px;
     double ylen = Ly/Py;
-    int nx = (Nx-2)/Px + 2;
-    int ny = (Ny-2)/Py + 2;
+    int nx = (Nx-2)/Px;
+    int ny = (Ny-2)/Py;
     
    //try
 	 
@@ -32,7 +33,6 @@ int main(int argc, char **argv)
 	 solver->SetReynoldsNumber(Re);
 	 solver->GridSpace();
 	 solver->LinearMatrices();
-	 solver->Extract();
 
    	 solver->Initialise();
    	 // solver->Integrate();
@@ -45,6 +45,29 @@ int main(int argc, char **argv)
 		 solver->PossionSolver();
 		 t = t + dt;
 		 cout << "t = " << t << endl;
+		 // print the matrix out to debug
+	       	 cout.precision(3);
+
+		 cout << "vorticity: " << endl;
+		 for (int i = 0; i < nx; i++)
+		 {
+		 	 for (int j = 0; j < ny; j++)
+		 	 {
+				 cout << setw(10) << solver->v[i*ny+j];
+			 }
+			 cout << endl;
+		 }
+		 cout << "stream function: " << endl;
+		 for (int i = 0; i < nx; i++)
+		 {
+		 	 for (int j = 0; j < ny; j++)
+		 	 {
+				 cout << setw(10) << solver->s[i*ny+j];
+			 }
+			 cout << endl;
+		 }
 	 }
-	return 0;
+	 solver->Output();
+
+	 return 0;
 }

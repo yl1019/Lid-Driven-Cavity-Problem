@@ -29,9 +29,8 @@ public:
     void GridSpace();
     /// Construct constant matrices for computing
     void LinearMatrices();	
-    /// extract interior vector from whole matrix for solving linear system 
-    void Extract();
-
+    /// Generate vector b of linear system using boundary conditions
+    void BoundaryVector(double *b, char matrix, char x);
 
     /// Initialise the flow quantities
     void Initialise();
@@ -45,20 +44,29 @@ public:
     void VorticityInterior();
     /// Update interior vorticity
     void VorticityUpdate();
-    /// Possion solver, to be separated later
+    /// Possion solver, to be separated late
     void PossionSolver();
 
+    /// Output the solutions in different files
+    void Output();
     
-private:
+// pirvate    
     double *v = nullptr;   ///< vorticity matrix stored in row major
     double *s = nullptr;   ///<	stream function matrix stored in row major
-    double *v_int = nullptr; ///< interior vorticity matrix
-    double *s_int = nullptr; ///< interior stream function matrix
+    /// vorticity and streamfunction boundaries
+    double *v_top = nullptr;
+    double *v_bot = nullptr; 
+    double *v_left = nullptr;
+    double *v_right = nullptr; 
+    double *s_top = nullptr;
+    double *s_bot = nullptr; 
+    double *s_left = nullptr;
+    double *s_right = nullptr; 
 
     double dt;             ///< time step size
     double T;              ///< terminal time
-    int    Nx;             ///< number of grid points in x-direction
-    int    Ny; 	           ///< number of grid points in y-direction
+    int    Nx;             ///< number of interior grid points in x-direction
+    int    Ny; 	           ///< number of interior grid points in y-direction
     double Lx;		   ///< length of subdomain in x-direction
     double Ly;             ///< length of subdomain in y-direction
     double Re;             ///< Reynolds number
@@ -66,8 +74,8 @@ private:
     double dy;             ///< grid spacing in y-direction
 
     double *A = nullptr;   ///< store constant linear matrix to compute v
-};
     double *B = nullptr;   ///< store constant matrix with only subdiagonal values
     double *C = nullptr;   ///< store constant matrix with other off-diagonal values
+};
     
 

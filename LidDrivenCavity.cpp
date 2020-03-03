@@ -1,27 +1,12 @@
-#include "LidDrivenCavity.h"
 #include <iostream>
 #include <fstream>
 #include <iomanip>
 #include <cstring>
 
-#define F77NAME(x) x##_
-extern "C"
-{
-	void F77NAME(dgemv) (const char& trans, const int& m,
-			const int& n, const double& alpha,
-			const double* A, const int& lda,
-			const double* x, const int& incx,
-			const double& beta, double* y,
-			const int& incy);
-	void F77NAME(daxpy) (const int &n, const double &alpha, 
-			const double *x, const int &incx,
-			double *y, const int &incy);	
-	void F77NAME(dscal) (const int &n, const double &alpha, 
-		        double *x, const int &incx);
-	void F77NAME(dgesv) (const int &n, const int &nrhs, const double *A,
-			const int &lda, int *ipiv, double *B, 
-			const int &ldb, int &info);
-}
+#include "LidDrivenCavity.h"
+#include "cblas.h"
+#include "PoissonSolver.h"
+
 
 LidDrivenCavity::LidDrivenCavity()
 {
@@ -79,40 +64,41 @@ void LidDrivenCavity::GridSpace()
  */
 void LidDrivenCavity::LinearMatrices()
 {
-	static int size = Nx * Ny;        ///< size of matrices
-	A = new double[size * size]();      ///< only consider inner points
-	B = new double[size * size]();      ///< only consider inner points
-	C = new double[size * size]();      ///< only consider inner points
+	size = Nx * Ny;        ///< size of matrices
+	lda = Ny + 1;              
+	ldb = 3;
+	ldc = 2*Ny + 1;
+	A = new double[size * lda]();  ///< store as symmetric banded matrix with bwidth = Ny
+	B = new double[size * ldb]();       ///< store as banded matrix with bwidth = 1
+	C = new double[size * ldc]();///< store as banded matrix with bwidth = Ny  
 	double A_DiagVal = 2/(dx*dx) + 2/(dy*dy); ///< diagonal entries
 	double A_SubDiagVal = -1/(dy*dy);     ///< entries above and below the diagonal 
 	double A_OffDiagVal = -1/(dx*dx);     ///< entries in the off-diagonal blocks 
 	double B_SubDiagVal = 1/(2*dy);
 	double C_OffDiagVal = 1/(2*dx);
-	/// Diagonal entries
-	for (int i = 0; i < size; i++)
+	/// Matrix A
+	for (int j = 0; j < size; j++)
 	{
-		A[i*size + i] = A_DiagVal;
-	}
-	/// Sub-diagonal entries
-	for (int i = 0; i < size-2; i++)
-	{
-		if ( (i+1) % Ny  != 0)
+		A[lda-1 + j*lda] = A_DiagVal;
+		if (j >= 1)
 		{
-			A[i*size + i+1] = A_SubDiagVal;
-			A[(i+1)*size + i] = A_SubDiagVal;
-			B[i*size + i+1] = B_SubDiagVal;
-			B[(i+1)*size + i] = -B_SubDiagVal;
+			A[lda-2 + j*lda] = A_SubDiagVal;
+			if (j >= Ny)       A[j * lda] = A_OffDiagVal;
 		}
+		
 	}
-	/// Other off-diagonal entries
-	for (int i = 0; i < size - Ny; i++)
+	/// Matrix B
+	for (int j = 0; j < size - 1; j++)
 	{
-		A[i*size + (i+Ny)] = A_OffDiagVal;
-		A[(i+Ny)*size + i] = A_OffDiagVal;
-		C[i*size + (i+Ny)] = C_OffDiagVal;
-		C[(i+Ny)*size + i] = -C_OffDiagVal;
+		B[2 + j*ldb] = -B_SubDiagVal;
+		B[(j+1)*ldb] = B_SubDiagVal;
 	}
-}
+	/// Matrix C
+	for (int j = 0; j < size - Ny; j++)
+	{
+		C[ldc-1 + j*ldc] = -C_OffDiagVal;
+		C[(j+Ny)*ldc] = C_OffDiagVal;
+	}
 
 /**
  * @brief construct the boundary vector b in linear system y = Ax + b
@@ -122,7 +108,6 @@ void LidDrivenCavity::LinearMatrices()
  */
 void LidDrivenCavity::BoundaryVector(double *b, char matrix, char x)
 {	
-	static int size = Nx * Ny;           ///< size of vector b 
 	static double A_SubDiagVal = -1/(dy*dy);     ///< entries above and below the diagonal 
 	static double A_OffDiagVal = -1/(dx*dx);     ///< entries in the off-diagonal blocks 
 	static double B_SubDiagVal = 1/(2*dy);  
@@ -184,7 +169,7 @@ void LidDrivenCavity::BoundaryVector(double *b, char matrix, char x)
 				for (int i = 0; i < Ny; i++)
 				{
 					b[i] += s_left[i] * C_OffDiagVal;
-					b[i+(Nx-1)*Ny] += s_right[i] * C_OffDiagVal;
+					b[i+(Nx-1)*Ny] += s_right[i] * (-C_OffDiagVal);
 				}
 			}
 			else if (x == 'v')
@@ -192,7 +177,7 @@ void LidDrivenCavity::BoundaryVector(double *b, char matrix, char x)
 				for (int i = 0; i < Ny; i++)
 				{
 					b[i] += v_left[i] * C_OffDiagVal;
-					b[i+(Nx-1)*Ny] += v_right[i] * C_OffDiagVal;
+					b[i+(Nx-1)*Ny] += v_right[i] * (-C_OffDiagVal);
 				}
 			} break;
 		}
@@ -258,13 +243,12 @@ void LidDrivenCavity::VorticityBCs()
 void LidDrivenCavity::VorticityInterior()
 {
 	/// Construct RHS vector b using boundary conditions
-	static int size = Nx * Ny;           ///< size of vector b 
 	double *b =  new double[size]();    ///< allocate memory and initialise to zero
 	BoundaryVector(b, 'A', 's');
 
 	/// Calculate v = As + b;
-	F77NAME(dgemv) ('T', size, size, 1.0, A, size, s, 1, 1.0, b, 1);
-	memcpy(v, b, size * sizeof(double));
+	cblas_dsbmv (CblasColMajor, CblasUpper, size, Ny, 1.0, A, lda, s, 1, 1.0, b, 1); ///< b = As + b
+	cblas_dcopy (size, b, 1, v, 1);      /// v = b
 	delete[] b;	
 }
 
@@ -273,24 +257,23 @@ void LidDrivenCavity::VorticityInterior()
  */
 void LidDrivenCavity::VorticityUpdate()
 {
-	static int size =  Nx * Ny;   ///< size of vector f
 	/// three parts of vector f
 	double *b1 = new double[size]();   ///< viscosity term
 	double *b2 = new double[size]();   ///< advection term
 	double *b3 = new double[size]();   ///< also advection term
 	
-	/// First calculate b1-----------------------------------
+	/// First calculate b1 = Av + b1-----------------------------------
 	BoundaryVector(b1, 'A', 'v');
-	F77NAME(dgemv) ('T', size, size, 1.0, A, size, v, 1, 1.0, b1, 1 );
+	cblas_dsbmv (CblasColMajor, CblasUpper, size, Ny, 1.0, A, lda, v, 1, 1.0, b1, 1); ///< b = As + b
 	/// Calculate b2-----------------------------------------
 	double *temp1 = new double[size](); ///< temp1 = Cs + b, b is the boundary term
 	double *temp2 = new double[size](); ///< temp2 = Bv + b
 	// calculate temp1
 	BoundaryVector(temp1, 'C', 's');
-	F77NAME(dgemv) ('T', size, size, 1.0, C, size, s, 1, 1.0, temp1, 1 );
+	cblas_dgbmv (CblasColMajor, 'N', size, size, Ny, Ny, 1.0, C, ldc, s, 1, 1.0, temp1, 1);
 	// calculate temp2
 	BoundaryVector(temp2, 'B', 'v');
-	F77NAME(dgemv) ('T', size, size, 1.0, B, size, v, 1, 1.0, temp2, 1 );
+	cblas_dgbmv (CblasColMajor, 'N', size, size, 1, 1, 1.0, B, ldb, v, 1, 1.0, temp2, 1);
 	// calculate b2 by multiply each vector element i.e. b2 = temp1 .* temp2
 	for (int i = 0; i < size; i++)
 	{
@@ -305,10 +288,10 @@ void LidDrivenCavity::VorticityUpdate()
 	double *temp4 = new double[size](); ///< temp4 = Bs + b
 	// calculate temp3
 	BoundaryVector(temp3, 'C', 'v');
-	F77NAME(dgemv) ('T', size, size, 1.0, C, size, v, 1, 1.0, temp3, 1 );
+	cblas_dgbmv (CblasColMajor, 'N', size, size, Ny, Ny, 1.0, C, ldc, v, 1, 1.0, temp3, 1);
 	// calculate temp4
 	BoundaryVector(temp4, 'B', 's');
-	F77NAME(dgemv) ('T', size, size, 1.0, B, size, s, 1, 1.0, temp4, 1 );
+	cblas_dgbmv (CblasColMajor, 'N', size, size, 1, 1, 1.0, B, ldb, s, 1, 1.0, temp4, 1);
 	// calculate b3 by multiply each vector element i.e. b3 = temp3 .* temp4
 	for (int i = 0; i < size; i++)
 	{
@@ -319,9 +302,10 @@ void LidDrivenCavity::VorticityUpdate()
 	delete[] temp4;
 
 	/// Update interior vorticity-------------------------------
-	F77NAME(daxpy) (size, -dt/Re, b1, 1, v, 1);
-	F77NAME(daxpy) (size, dt, b2, 1, v, 1);
-	F77NAME(daxpy) (size, -dt, b3, 1, v, 1);
+	// v = v -(dt/Re)*b1 + dt*b2 - dt*b3
+	cblas_daxpy (size, -dt/Re, b1, 1, v, 1);
+	cblas_daxpy (size, dt, b2, 1, v, 1);
+	cblas_daxpy (size, -dt, b3, 1, v, 1);
 
 	/// release memory
 	delete[] b1;
@@ -329,12 +313,13 @@ void LidDrivenCavity::VorticityUpdate()
 	delete[] b3;
 }
 
+
 /**
  * @brief Possion solver to update stream function at time t+dt
  */
-void LidDrivenCavity::PossionSolver()
+void LidDrivenCavity::SolvePoisson()
 {
-	static int size = Nx * Ny;
+	
 	double *b =  new double[size]();    ///< allocate memory and initialise to zero
 	BoundaryVector(b, 'A', 's');
 
@@ -348,7 +333,7 @@ void LidDrivenCavity::PossionSolver()
 	// A is symmetric so doesn't need to be transpose
 	F77NAME(dgesv) (size, 1, A, size, ipiv, b, size, info);
 	memcpy (s, b, size*sizeof(double));
-	delete[] ipiv;
+	delete[] ipiv;	
 	delete[] b;	
 }
 

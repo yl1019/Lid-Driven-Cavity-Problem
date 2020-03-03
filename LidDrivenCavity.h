@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include "PossionSolver.h"
 using namespace std;
 
 /**
@@ -44,8 +45,9 @@ public:
     void VorticityInterior();
     /// Update interior vorticity
     void VorticityUpdate();
-    /// Possion solver, to be separated late
-    void PossionSolver();
+    /// Solver poisson equation using the class PossionSolver
+    void SolvePoisson();
+
 
     /// Output the solutions in different files
     void Output();
@@ -76,6 +78,13 @@ public:
     double *A = nullptr;   ///< store constant linear matrix to compute v
     double *B = nullptr;   ///< store constant matrix with only subdiagonal values
     double *C = nullptr;   ///< store constant matrix with other off-diagonal values
+    /// leading dimension of these matrices (for packed storage)
+    int lda;
+    int ldb;
+    int ldc;
+    int size; ///< size of the linear problem
+
+    PoissonSolver *ps = new PoissonSolver();
 };
     
 

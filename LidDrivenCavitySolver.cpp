@@ -4,16 +4,24 @@
 using namespace std;
 
 #include "LidDrivenCavity.h"
-
+#include "ProgramOptions.h"
 int main(int argc, char **argv)
 {
     /// Parameters from command input
-    double Lx = 1, Ly = 1;
-    int Nx = 10, Ny = 10;
-    int Px = 1, Py = 1;
-    double dt = 0.1;
-    double T = 10.0;
-    double Re = 100;
+    double Lx, Ly;
+    int Nx, Ny;
+    int Px, Py;
+    double dt;
+    double T;
+    double Re;
+    po::variables_map vm;
+    bool status; ///< to decide the input status, 1 for successful input
+
+    status = OptionStatus(argc, argv, vm);
+    /// If help is called or error occurs, terminate the program
+    if (status == 0) return 0;
+    /// Read all parameters
+    ReadVals(vm, Lx, Ly, Nx, Ny, Px, Py, dt, T, Re);
 
     /// Parameters for each partition
     double xlen = Lx/Px;
@@ -42,6 +50,7 @@ int main(int argc, char **argv)
 		 solver->VorticityBCs();
 		 solver->VorticityInterior();
 		 solver->VorticityUpdate();
+		// solver->PossionIter();
 		 solver->PossionSolver();
 		 t = t + dt;
 		 cout << "t = " << t << endl;

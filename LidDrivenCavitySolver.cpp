@@ -49,14 +49,11 @@ int main(int argc, char **argv)
 	 {
 		 solver->VorticityBCs();
 		 solver->VorticityInterior();
-		 solver->VorticityUpdate();
-		// solver->PossionIter();
-		 solver->PossionSolver();
 		 t = t + dt;
 		 cout << "t = " << t << endl;
 		 // print the matrix out to debug
 	       	 cout.precision(3);
-
+		 cout << "After step 2: " << endl;
 		 cout << "vorticity: " << endl;
 		 for (int i = 0; i < nx; i++)
 		 {
@@ -66,6 +63,22 @@ int main(int argc, char **argv)
 			 }
 			 cout << endl;
 		 }
+		
+
+		 solver->VorticityUpdate();
+		 cout << "After step 3: " << endl;
+		 cout << "vorticity: " << endl;
+		 for (int i = 0; i < nx; i++)
+		 {
+		 	 for (int j = 0; j < ny; j++)
+		 	 {
+				 cout << setw(10) << solver->v[i*ny+j];
+			 }
+			 cout << endl;
+		 }
+		
+		 solver->SolvePoisson();
+		 
 		 cout << "stream function: " << endl;
 		 for (int i = 0; i < nx; i++)
 		 {
@@ -75,6 +88,7 @@ int main(int argc, char **argv)
 			 }
 			 cout << endl;
 		 }
+
 	 }
 	 solver->Output();
 

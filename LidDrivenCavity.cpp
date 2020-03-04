@@ -80,26 +80,23 @@ void LidDrivenCavity::LinearMatrices()
 	for (int j = 0; j < size; j++)
 	{
 		A[lda-1 + j*lda] = A_DiagVal;
-		if (j >= 1)
-		{
-			A[lda-2 + j*lda] = A_SubDiagVal;
-			if (j >= Ny)       A[j * lda] = A_OffDiagVal;
-		}
+		if (j % Ny != 0)   A[lda-2 + j*lda] = A_SubDiagVal;
+		if (j >= Ny)       A[j * lda] = A_OffDiagVal;
 		
 	}
 	/// Matrix B
-	for (int j = 0; j < size - 1; j++)
+	for (int j = 0; j < size; j++)
 	{
-		B[2 + j*ldb] = -B_SubDiagVal;
-		B[(j+1)*ldb] = B_SubDiagVal;
+		if (j % Ny != 0)     B[j*ldb] = B_SubDiagVal;
+		if (j % Ny != Ny-1)  B[2 + j*ldb] = -B_SubDiagVal;
 	}
 	/// Matrix C
-	for (int j = 0; j < size - Ny; j++)
+	for (int j = 0; j < size; j++)
 	{
-		C[ldc-1 + j*ldc] = -C_OffDiagVal;
-		C[(j+Ny)*ldc] = C_OffDiagVal;
+		if (j >= Ny)      C[j*ldc] = C_OffDiagVal;
+		if (j < size-Ny)  C[ldc-1 + j*ldc] = -C_OffDiagVal;
 	}
-
+}
 /**
  * @brief construct the boundary vector b in linear system y = Ax + b
  * @param b the vector b
@@ -149,16 +146,16 @@ void LidDrivenCavity::BoundaryVector(double *b, char matrix, char x)
 			{
 				for (int i = 0; i < Nx; i++)
 				{
-					b[i*Ny] += s_bot[i] * B_SubDiagVal;
-					b[i*Ny + Ny-1] += s_top[i] * (-B_SubDiagVal);
+					b[i*Ny] += s_bot[i] * (-B_SubDiagVal);
+					b[i*Ny + Ny-1] += s_top[i] * B_SubDiagVal;
 				}
 			}
 			else if (x == 'v')
 			{
 				for (int i = 0; i < Nx; i++)
 				{
-					b[i*Ny] += v_bot[i] * B_SubDiagVal;
-					b[i*Ny + Ny-1] += v_top[i] * (-B_SubDiagVal);
+					b[i*Ny] += v_bot[i] * (-B_SubDiagVal);
+					b[i*Ny + Ny-1] += v_top[i] * B_SubDiagVal;
 				}
 			} break;
 		}
@@ -168,16 +165,16 @@ void LidDrivenCavity::BoundaryVector(double *b, char matrix, char x)
 			{
 				for (int i = 0; i < Ny; i++)
 				{
-					b[i] += s_left[i] * C_OffDiagVal;
-					b[i+(Nx-1)*Ny] += s_right[i] * (-C_OffDiagVal);
+					b[i] += s_left[i] * (-C_OffDiagVal);
+					b[i+(Nx-1)*Ny] += s_right[i] * C_OffDiagVal;
 				}
 			}
 			else if (x == 'v')
 			{
 				for (int i = 0; i < Ny; i++)
 				{
-					b[i] += v_left[i] * C_OffDiagVal;
-					b[i+(Nx-1)*Ny] += v_right[i] * (-C_OffDiagVal);
+					b[i] += v_left[i] * (-C_OffDiagVal);
+					b[i+(Nx-1)*Ny] += v_right[i] * C_OffDiagVal;
 				}
 			} break;
 		}
@@ -262,18 +259,18 @@ void LidDrivenCavity::VorticityUpdate()
 	double *b2 = new double[size]();   ///< advection term
 	double *b3 = new double[size]();   ///< also advection term
 	
-	/// First calculate b1 = Av + b1-----------------------------------
+	/// First calculate b1 = Av + b-----------------------------------
 	BoundaryVector(b1, 'A', 'v');
-	cblas_dsbmv (CblasColMajor, CblasUpper, size, Ny, 1.0, A, lda, v, 1, 1.0, b1, 1); ///< b = As + b
+	cblas_dsbmv (CblasColMajor, CblasUpper, size, Ny, 1.0, A, lda, v, 1, 1.0, b1, 1); 
 	/// Calculate b2-----------------------------------------
 	double *temp1 = new double[size](); ///< temp1 = Cs + b, b is the boundary term
 	double *temp2 = new double[size](); ///< temp2 = Bv + b
 	// calculate temp1
 	BoundaryVector(temp1, 'C', 's');
-	cblas_dgbmv (CblasColMajor, 'N', size, size, Ny, Ny, 1.0, C, ldc, s, 1, 1.0, temp1, 1);
+	cblas_dgbmv (CblasColMajor, CblasNoTrans, size, size, Ny, Ny, 1.0, C, ldc, s, 1, 1.0, temp1, 1);
 	// calculate temp2
 	BoundaryVector(temp2, 'B', 'v');
-	cblas_dgbmv (CblasColMajor, 'N', size, size, 1, 1, 1.0, B, ldb, v, 1, 1.0, temp2, 1);
+	cblas_dgbmv (CblasColMajor, CblasNoTrans, size, size, 1, 1, 1.0, B, ldb, v, 1, 1.0, temp2, 1);
 	// calculate b2 by multiply each vector element i.e. b2 = temp1 .* temp2
 	for (int i = 0; i < size; i++)
 	{
@@ -288,10 +285,10 @@ void LidDrivenCavity::VorticityUpdate()
 	double *temp4 = new double[size](); ///< temp4 = Bs + b
 	// calculate temp3
 	BoundaryVector(temp3, 'C', 'v');
-	cblas_dgbmv (CblasColMajor, 'N', size, size, Ny, Ny, 1.0, C, ldc, v, 1, 1.0, temp3, 1);
+	cblas_dgbmv (CblasColMajor, CblasNoTrans, size, size, Ny, Ny, 1.0, C, ldc, v, 1, 1.0, temp3, 1);
 	// calculate temp4
 	BoundaryVector(temp4, 'B', 's');
-	cblas_dgbmv (CblasColMajor, 'N', size, size, 1, 1, 1.0, B, ldb, s, 1, 1.0, temp4, 1);
+	cblas_dgbmv (CblasColMajor, CblasNoTrans, size, size, 1, 1, 1.0, B, ldb, s, 1, 1.0, temp4, 1);
 	// calculate b3 by multiply each vector element i.e. b3 = temp3 .* temp4
 	for (int i = 0; i < size; i++)
 	{
@@ -315,26 +312,14 @@ void LidDrivenCavity::VorticityUpdate()
 
 
 /**
- * @brief Possion solver to update stream function at time t+dt
+ * @brief call PossionSolver to update stream function at time t+dt
  */
 void LidDrivenCavity::SolvePoisson()
 {
-	
-	double *b =  new double[size]();    ///< allocate memory and initialise to zero
-	BoundaryVector(b, 'A', 's');
-
-	/// Solving As = v - b
-	// Calculate  RHS =  v - b
-	F77NAME(daxpy) (size, -1.0, v, 1, b, 1);
-	F77NAME(dscal) (size, -1.0, b, 1);
-	// Solving As = RHS (b)
-	int *ipiv = new int[size];   ///< vector for pivots
-	int info = 0;
-	// A is symmetric so doesn't need to be transpose
-	F77NAME(dgesv) (size, 1, A, size, ipiv, b, size, info);
-	memcpy (s, b, size*sizeof(double));
-	delete[] ipiv;	
-	delete[] b;	
+	/// Create a new PoissonSolver instance and solve Poisson problem
+	if (ps == nullptr)    ps = new PoissonSolver(Nx, Ny, dx, dy);
+	ps->SetBoundary(s_top, s_left, s_bot, s_right);
+	ps->Solve(s, v);
 }
 
 /**

@@ -1,27 +1,32 @@
+#ifndef POISSON_SOLVER
+#define POISSON_SOLVER
+
 /**
  * @class PoissonSolver
  * @brief Solving the poisson problem Ax + b = f using Conjugate Gradient algotithm
  */
-
 class PoissonSolver
 {
 public:
-	PoissonSolver();
+	PoissonSolver(const int &Nx, const int &Ny, const double &dx, const double &dy);
 	~PoissonSolver();
-	
-	void SetSize(int &size);
-	void SetBoundary(double *b);
-	void SetSourse(double *f);
-	void SetMatrix(double *A, int &bwidth);
-	void InitialGuess(double *x);
-	void Solve();
+	void SetBoundary(double *top, double *left, double *bot, double *right);
+	void Solve(double *x, double *f);
 
 private:
-	int size = 0;         ///< size of the linear system
-	double *x = nullptr;        ///< store solution vector
-	double *b = nullptr;        ///< store boundary vector
-	double *f = nullptr;        ///< store sourse vector
-	double *A = nullptr;        ///< store matrix A	
-	int bwidth;             ///< store banded width of A
-}
+	/// size of the linear system problem
+	int Nx;
+	int Ny;
+	double dx;
+	double dy;
+	int size;     
 
+	double *A = nullptr;        ///< store matrix A
+	double A_DiagVal;
+	double A_SubDiagVal;
+	double A_OffDiagVal;	
+	int lda;                    ///< leading dimension of A	
+	double *b = nullptr;        ///< store boundary vector
+};
+
+#endif

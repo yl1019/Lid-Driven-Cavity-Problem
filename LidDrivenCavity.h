@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include "PossionSolver.h"
+#include "PoissonSolver.h"
 using namespace std;
 
 /**
@@ -84,7 +84,7 @@ public:
     int ldc;
     int size; ///< size of the linear problem
 
-    PoissonSolver *ps = new PoissonSolver();
+    PoissonSolver *ps = nullptr;
 };
     
 

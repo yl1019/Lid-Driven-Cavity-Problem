@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.1)
 project (MainSolver)
 
-add_executable(MainSolver LidDrivenCavitySolver.cpp LidDrivenCavity.cpp ProgramOptions.cpp)
+add_executable(MainSolver LidDrivenCavitySolver.cpp LidDrivenCavity.cpp
+	ProgramOptions.cpp PoissonSolver.cpp)
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)

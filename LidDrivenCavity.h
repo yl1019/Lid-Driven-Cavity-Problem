@@ -1,4 +1,5 @@
-#pragma once
+#ifndef LID_DRIVEN_CAVITY
+#define LID_DRIVEN_CAVITY
 
 #include <string>
 #include "PoissonSolver.h"
@@ -21,7 +22,7 @@ public:
     /// Set the grid of each subspace
     void SetGridSize(int nx, int ny);
     /// Set time step with respect to the restricion
-    void SetTimeStep(double deltat);
+    bool SetTimeStep(double deltat);
     /// Set terminal time
     void SetFinalTime(double finalt);
     /// Set Reynolds number for the problem
@@ -38,7 +39,6 @@ public:
     /// Gather all information to rank 0 for output
     void Integrate();
 
-
     /// Calculate vorticity in ghost cells
     void VorticityBCs();
     /// Calculate interior vorticity at time t
@@ -47,44 +47,34 @@ public:
     void VorticityUpdate();
     /// Solver poisson equation using the class PossionSolver
     void SolvePoisson();
-
-
     /// Output the solutions in different files
     void Output();
     
-// pirvate    
-    double *v = nullptr;   ///< vorticity matrix stored in row major
-    double *s = nullptr;   ///<	stream function matrix stored in row major
-    /// vorticity and streamfunction boundaries
-    double *v_top = nullptr;
-    double *v_bot = nullptr; 
-    double *v_left = nullptr;
-    double *v_right = nullptr; 
-    double *s_top = nullptr;
-    double *s_bot = nullptr; 
-    double *s_left = nullptr;
-    double *s_right = nullptr; 
+private: 
+    double *v;	///< vorticity vector
+    double *s;  ///< stream function vector
+    /// Vorticity and streamfunction boundaries
+    double *v_top, *v_left, *v_bot, *v_right;
+    double *s_top, *s_left, *s_bot, *s_right;
+    /// User input parameters for each partition
+    double dt;	///< time step size
+    double T;	///< terminal time
+    int    Nx;  ///< number of interior grid points in x-direction
+    int    Ny; 	///< number of interior grid points in y-direction
+    double Lx;  ///< length of subdomain in x-direction
+    double Ly;  ///< length of subdomain in y-direction
+    double Re;  ///< Reynolds number
+    double dx;  ///< grid spacing in x-direction
+    double dy;  ///< grid spacing in y-direction
 
-    double dt;             ///< time step size
-    double T;              ///< terminal time
-    int    Nx;             ///< number of interior grid points in x-direction
-    int    Ny; 	           ///< number of interior grid points in y-direction
-    double Lx;		   ///< length of subdomain in x-direction
-    double Ly;             ///< length of subdomain in y-direction
-    double Re;             ///< Reynolds number
-    double dx;             ///< grid spacing in x-direction
-    double dy;             ///< grid spacing in y-direction
-
-    double *A = nullptr;   ///< store constant linear matrix to compute v
-    double *B = nullptr;   ///< store constant matrix with only subdiagonal values
-    double *C = nullptr;   ///< store constant matrix with other off-diagonal values
+    double *A;	///< store a symmetric banded matrix of Laplacian equation
+    double *B;  ///< store a banded matrix with only subdiagonal values
+    double *C;  ///< store a banded matrix with other off-diagonal values
     /// leading dimension of these matrices (for packed storage)
-    int lda;
-    int ldb;
-    int ldc;
-    int size; ///< size of the linear problem
+    int lda, ldb, ldc;
+    int size;	///< size of the linear matrices
 
-    PoissonSolver *ps = nullptr;
+    PoissonSolver *ps;	///< poisson solver object
 };
     
-
+#endif

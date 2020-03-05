@@ -5,42 +5,41 @@ using namespace std;
 
 #include "LidDrivenCavity.h"
 #include "ProgramOptions.h"
+
 int main(int argc, char **argv)
 {
-    /// Parameters from command input
-    double Lx, Ly;
-    int Nx, Ny;
-    int Px, Py;
-    double dt;
-    double T;
-    double Re;
-    po::variables_map vm;
-    bool status; ///< to decide the input status, 1 for successful input
+    	/** Parameters from command input */
+    	double Lx, Ly;
+    	int Nx, Ny;
+    	int Px, Py;
+   	double dt;
+    	double T;
+   	double Re;
+    	po::variables_map vm;
+    	bool status;	///< to decide the input status, 1 for successful input
 
-    status = OptionStatus(argc, argv, vm);
-    /// If help is called or error occurs, terminate the program
-    if (status == 0) return 0;
-    /// Read all parameters
-    ReadVals(vm, Lx, Ly, Nx, Ny, Px, Py, dt, T, Re);
+    	status = OptionStatus(argc, argv, vm);
+    	/// If help is called or error occurs, terminate the program
+    	if (status == 0) return 0;
+    	/// Read all parameters
+    	ReadVals(vm, Lx, Ly, Nx, Ny, Px, Py, dt, T, Re);
 
-    /// Parameters for each partition
-    double xlen = Lx/Px;
-    double ylen = Ly/Py;
-    int nx = (Nx-2)/Px;
-    int ny = (Ny-2)/Py;
-    
-   //try
-	 
+    	/// Parameters for each partition
+    	double xlen = Lx/Px;
+    	double ylen = Ly/Py;
+    	int nx = (Nx-2)/Px;
+   	int ny = (Ny-2)/Py;
+    	 
    	 /// Create a new instance of the LidDrivenCavity class
    	 LidDrivenCavity* solver = new LidDrivenCavity();
 
    	 solver->SetDomainSize(xlen, ylen);
 	 solver->SetGridSize(nx, ny);
-	 solver->SetTimeStep(dt);
 	 solver->SetFinalTime(T);
 	 solver->SetReynoldsNumber(Re);
 	 solver->GridSpace();
 	 solver->LinearMatrices();
+	 if (!solver->SetTimeStep(dt)) return 0;
 
    	 solver->Initialise();
    	 // solver->Integrate();
@@ -52,7 +51,7 @@ int main(int argc, char **argv)
 		 t = t + dt;
 		 cout << "t = " << t << endl;
 		 // print the matrix out to debug
-	       	 cout.precision(3);
+/*	       	 cout.precision(3);
 		 cout << "After step 2: " << endl;
 		 cout << "vorticity: " << endl;
 		 for (int i = 0; i < nx; i++)
@@ -63,10 +62,10 @@ int main(int argc, char **argv)
 			 }
 			 cout << endl;
 		 }
-		
+*/		
 
 		 solver->VorticityUpdate();
-		 cout << "After step 3: " << endl;
+/*		 cout << "After step 3: " << endl;
 		 cout << "vorticity: " << endl;
 		 for (int i = 0; i < nx; i++)
 		 {
@@ -76,9 +75,9 @@ int main(int argc, char **argv)
 			 }
 			 cout << endl;
 		 }
-		
+*/		
 		 solver->SolvePoisson();
-		 
+/*		 
 		 cout << "stream function: " << endl;
 		 for (int i = 0; i < nx; i++)
 		 {
@@ -87,7 +86,7 @@ int main(int argc, char **argv)
 				 cout << setw(10) << solver->s[i*ny+j];
 			 }
 			 cout << endl;
-		 }
+		 }*/
 
 	 }
 	 solver->Output();

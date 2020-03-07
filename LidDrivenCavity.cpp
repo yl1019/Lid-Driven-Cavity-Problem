@@ -2,31 +2,29 @@
 #include <fstream>
 #include <iomanip>
 #include <cstring>
+#include <mpi.h>
 
 #include "LidDrivenCavity.h"
 #include "cblas.h"
 #include "PoissonSolver.h"
 
-LidDrivenCavity::LidDrivenCavity()
+/* Constructor and destructor
+======================================================================== */
+LidDrivenCavity::LidDrivenCavity(MPI_Comm mygrid, int rank, int *coords, int *neighbor, int nx,
+	       	int ny, double deltat, double finalt, double re, double dx, double dy, bool &dt_flag)
 {
-	/// Initialize all pointers to 0x0
-	v = nullptr;   
-	s = nullptr;
-    	v_top = nullptr;
-    	v_bot = nullptr; 
-    	v_left = nullptr;
-    	v_right = nullptr; 
-   	s_top = nullptr;
-  	s_bot = nullptr; 
-    	s_left = nullptr;
-    	s_right = nullptr; 
-    	A = nullptr;   
-    	B = nullptr;  
-   	C = nullptr;   
- 	ps = nullptr;
-	/// Other parameters will be determined via Setter or inside a method
+	this->mygrid = mygrid;
+	this->rank = rank;
+	memcpy(this->coords, coords, 2*sizeof(int));
+	memcpy(this->neighbor, neighbor, 4*sizeof(int));
+	Nx = nx;
+	Ny = ny;
+	T = finalt;
+	Re = re;
+	this->dx = dx;
+	this->dy = dy;
+	dt_flag = SetTimeStep(deltat);	///< flag to determine the stability restriction on dt
 }
-
 LidDrivenCavity::~LidDrivenCavity()
 {
 	delete[] v;
@@ -45,15 +43,16 @@ LidDrivenCavity::~LidDrivenCavity()
 	delete[] ps;
 
 }
-/// Setters receiving messages from main program
-void LidDrivenCavity::SetDomainSize(double xlen, double ylen)
-{
-	Lx = xlen;
-	Ly = ylen;
-}
+
+/* Setters
+======================================================================== */
+/**
+ * @brief Set the number of interior grids in x and y direction
+ * @param nx	number of interior grids in x direction
+ * @param nx	number of interior grids in x direction
+ */
 void LidDrivenCavity::SetGridSize(int nx, int ny)
 {
-	/// Nx and Ny is the number of the INTERIOR points in x and y direction
 	Nx = nx;
 	Ny = ny;
 }
@@ -79,23 +78,25 @@ bool LidDrivenCavity::SetTimeStep(double deltat)
    }
    return 1;
 }
+/**
+ * @brief Set final time
+ * @param finalt	final time
+ */
 void LidDrivenCavity::SetFinalTime(double finalt)
 {
 	T = finalt;
 }
+/**
+ * @brief Set Reynolds number
+ * @param re	Reynolds number
+ */
 void LidDrivenCavity::SetReynoldsNumber(double re)
 {
 	Re = re;
 }
-/**
- * @brief Calculate grid space of each process
- */
-void LidDrivenCavity::GridSpace()
-{
-	dx = Lx / (Nx + 1);
-	dy = Ly / (Ny + 1);
-}
 
+/* Methods for solver
+======================================================================== */
 /**
  * @brief Construct constant matrices for linear systems
  * @param A	matrix for calculate v at time t(also for v at t+dt), i.e. v = As + b
@@ -222,7 +223,6 @@ void LidDrivenCavity::BoundaryVector(double *b, char matrix, char x)
 		default: break;
 	}	
 }
-
 
 /**
  * @brief Initialize all interior and boundary vectors
@@ -406,3 +406,27 @@ void LidDrivenCavity::Output()
 	vOut.close();
 	sOut.close();
 }
+
+/* Solver 
+======================================================================== */
+/**
+ * @brief Solve the whole problem
+ */
+void LidDrivenCavity::Solve()
+{
+	LinearMatrices();
+	Initialise();
+	double t = 0.0;
+	while (t < T)
+	{
+		if (rank == 0) cout << "t = " << t << endl;
+		VorticityBCs();
+		VorticityInterior();
+		VorticityUpdate();
+		SolvePoisson();
+		t += dt;
+	}
+	Output();
+}
+
+

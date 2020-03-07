@@ -2,7 +2,10 @@
 #define LID_DRIVEN_CAVITY
 
 #include <string>
+#include <mpi.h>
+
 #include "PoissonSolver.h"
+
 using namespace std;
 
 /**
@@ -12,51 +15,50 @@ using namespace std;
 class LidDrivenCavity
 {
 public:
-    /// Default Constructor
-    LidDrivenCavity();
-    /// Clean up and deallocate memory
+    /** Constructor and Destructor */
+    LidDrivenCavity(MPI_Comm mygrid, int rank, int *coords, int *neighbor, int nx,
+	       	int ny, double deltat, double finalt, double re, double dx, double dy, bool &dt_flag);
     ~LidDrivenCavity();
 
-    /// Set Domain size of each process
-    void SetDomainSize(double xlen, double ylen);
-    /// Set the grid of each subspace
+    /** Setters */
     void SetGridSize(int nx, int ny);
-    /// Set time step with respect to the restricion
     bool SetTimeStep(double deltat);
-    /// Set terminal time
     void SetFinalTime(double finalt);
-    /// Set Reynolds number for the problem
     void SetReynoldsNumber(double Re);
-    /// Calculate grid space
-    void GridSpace();
-    /// Construct constant matrices for computing
+   
+    /** Methods for solver */
     void LinearMatrices();	
-    /// Generate vector b of linear system using boundary conditions
     void BoundaryVector(double *b, char matrix, char x);
-
-    /// Initialise the flow quantities
     void Initialise();
-    /// Gather all information to rank 0 for output
     void Integrate();
 
-    /// Calculate vorticity in ghost cells
     void VorticityBCs();
-    /// Calculate interior vorticity at time t
     void VorticityInterior();
-    /// Update interior vorticity
     void VorticityUpdate();
-    /// Solver poisson equation using the class PossionSolver
     void SolvePoisson();
-    /// Output the solutions in different files
     void Output();
-    
+    void Solve();
+
 private: 
-    double *v;	///< vorticity vector
-    double *s;  ///< stream function vector
-    /// Vorticity and streamfunction boundaries
-    double *v_top, *v_left, *v_bot, *v_right;
-    double *s_top, *s_left, *s_bot, *s_right;
-    /// User input parameters for each partition
+    /** MPI configuration */
+    MPI_Comm mygrid;
+    int rank;
+    int coords[2];
+    int neighbor[4];
+
+    /** Vorticity and streamfunction interior and boundary vectors */
+    double *v = nullptr;
+    double *s = nullptr;
+    double *v_top = nullptr;
+    double *v_left = nullptr;
+    double *v_bot = nullptr;
+    double *v_right = nullptr;
+    double *s_top = nullptr;
+    double *s_left = nullptr;
+    double *s_bot = nullptr;
+    double *s_right = nullptr;
+
+    /** User input parameters for each partition */
     double dt;	///< time step size
     double T;	///< terminal time
     int    Nx;  ///< number of interior grid points in x-direction
@@ -67,14 +69,14 @@ private:
     double dx;  ///< grid spacing in x-direction
     double dy;  ///< grid spacing in y-direction
 
-    double *A;	///< store a symmetric banded matrix of Laplacian equation
-    double *B;  ///< store a banded matrix with only subdiagonal values
-    double *C;  ///< store a banded matrix with other off-diagonal values
-    /// leading dimension of these matrices (for packed storage)
+    /** Matrices of linear system */
+    double *A = nullptr;	///< store a symmetric banded matrix of Laplacian equation
+    double *B = nullptr;	///< store a banded matrix with only subdiagonal values
+    double *C = nullptr;	///< store a banded matrix with other off-diagonal values
     int lda, ldb, ldc;
-    int size;	///< size of the linear matrices
+    int size;
 
-    PoissonSolver *ps;	///< poisson solver object
+    PoissonSolver *ps = nullptr;	///< poisson solver object
 };
     
 #endif

@@ -13,7 +13,7 @@ int main(int argc, char **argv)
 	MPI_Init(&argc, &argv);
 	int rank, size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	MPI_Comm_rank(MPI_COMM_WORLD, &size);
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     	/** Parameters from command input */
     	double Lx, Ly;
@@ -26,7 +26,11 @@ int main(int argc, char **argv)
     	bool status;	///< to decide the input status, 1 for successful input
     	status = OptionStatus(argc, argv, vm);
     	/// If help is called or error occurs, terminate the program
-    	if (status == 0) MPI_Finalize(); return 0;
+    	if (!status)
+	{
+		MPI_Finalize();
+	       	return 0;
+	}
     	/// Read all parameters
     	ReadVals(vm, Lx, Ly, Nx, Ny, Px, Py, dt, T, Re);
 
@@ -35,7 +39,6 @@ int main(int argc, char **argv)
 	double dy = Ly/(Ny - 1);
 	if (!CheckWorkers(size, Px, Py))
 	{
-		// onlt output error information in master rank
 		if (rank == 0)
 		{
 			cout << "Number of processores doe not match input Px and Py." << endl;
@@ -60,17 +63,29 @@ int main(int argc, char **argv)
 	/// Obtain neighborhood information for each rank
 	FindNeighbor(mygrid, neighbor);
 	int nx, ny;	///< number of grids for each rank
+	double start[2] = {0.0, 0.0};
 	/// Distribute work to each process
-	DistributeWork(Nx, Ny, Px, Py, coords, nx, ny);
+	DistributeWork(rank, Nx, Ny, Px, Py, dx, dy, coords, start, nx, ny);
 		
+
+
 	/** Solving the main problem */
 	bool dt_flag;
    	/// Create a new instance of the LidDrivenCavity class for each rank
-   	LidDrivenCavity* solver = new LidDrivenCavity(mygrid, rank, coords, neighbor, nx, ny, dt, T, 
-			Re, dx, dy, dt_flag);
-	if (!dt_flag) return 0;
-
+   	LidDrivenCavity* solver = new LidDrivenCavity(mygrid, rank, coords, start, neighbor,
+		       	nx, ny, dt, T, Re, dx, dy, dt_flag);
+	if (!dt_flag)
+	{	
+		MPI_Finalize();
+		return 0;
+	}
+	/// Run the solver
         solver->Solve();
+	/// Output the result
+	solver->Output(Lx, Ly, Px, Py);
 
-	 return 0;
+	/// Exit
+	// delete[] solver;
+	MPI_Finalize();
+	return 0;
 }

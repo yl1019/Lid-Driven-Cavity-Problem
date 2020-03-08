@@ -27,7 +27,7 @@ bool OptionStatus(int argc, char *argv[], po::variables_map &vm)
 		("Ny", po::value<int>() ->default_value(161), "Number of grid points in the y-direction")
 		("Px", po::value<int>() ->default_value(1), "Number of the partitions in the x-direction")
 		("Py", po::value<int>() ->default_value(1), "Number of the partitions in the y-direction")
-		("dt", po::value<double>() ->default_value(0.01),"Time step size")
+		("dt", po::value<double>() ->default_value(0.0005),"Time step size")
 		("T", po::value<double>() ->default_value(5.0),"Final time")
 		("Re", po::value<double>() ->default_value(100.0),"Reynolds")
 	;

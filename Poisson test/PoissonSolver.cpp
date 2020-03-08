@@ -6,6 +6,13 @@ using namespace std;
 #include "PoissonSolver.h"
 #include "cblas.h"
 
+#define F77NAME(x) x##_
+extern "C"
+{
+	void F77NAME(dpbsv) (const char&, const int&, const int&, const int&, double*,
+		       	const int&, double*, const int&, int&);
+}
+
 PoissonSolver::PoissonSolver(const int &Nx, const int &Ny, const double  &dx, const double &dy)
 {
 	/// accept the input parameter
@@ -16,7 +23,7 @@ PoissonSolver::PoissonSolver(const int &Nx, const int &Ny, const double  &dx, co
 	/// build matrix A of the system
 	lda = Ny + 1;
 	size = Nx * Ny;
-	A = new double[size * lda]();      
+	A = new double[size * lda];      
 	A_DiagVal = 2/(dx*dx) + 2/(dy*dy); ///< diagonal entries
 	A_SubDiagVal = -1/(dy*dy);     ///< entries above and below the diagonal 
 	A_OffDiagVal = -1/(dx*dx);     ///< entries in the off-diagonal blocks 
@@ -24,11 +31,8 @@ PoissonSolver::PoissonSolver(const int &Nx, const int &Ny, const double  &dx, co
 	for (int j = 0; j < size; j++)
 	{
 		A[lda-1 + j*lda] = A_DiagVal;
-		if (j >= 1)
-		{
-			A[lda-2 + j*lda] = A_SubDiagVal;
-			if (j >= Ny)       A[j * lda] = A_OffDiagVal;
-		}	
+		if (j % Ny != 0)   A[lda-2 + j*lda] = A_SubDiagVal;
+		if (j >= Ny)       A[j * lda] = A_OffDiagVal;
 	}	
 }
 
@@ -44,6 +48,7 @@ PoissonSolver::~PoissonSolver()
 void PoissonSolver::SetBoundary(double *top, double *left, double *bot, double *right)
 {	
 	b = new double[size];
+	memset(b, 0.0, size*sizeof(double));
 	for (int i = 0; i < Ny; i++)
 	{
 		b[i] += left[i] * A_OffDiagVal;
@@ -59,18 +64,19 @@ void PoissonSolver::SetBoundary(double *top, double *left, double *bot, double *
 
 /**
  * @brief Accept initial guess of the solution vector and the sourse vector and solve Poisson equation
+ * solving Ax = f - b
  */
 void PoissonSolver::Solve(double *x,  double *f)
 {	
-	double *r = new double[size]();
-	double *p = new double[size]();
-	double *t = new double[size](); /// for temporary use
+	double *r = new double[size];
+	double *p = new double[size];
+	double *t = new double[size]; /// for temporary use
 	double alpha;
 	double beta;
 	double eps;
-	double tol = 0.001;
-
-	cblas_dcopy(size, b, 1, r, 1); ///< r0 = b
+	double tol = 0.00001;
+	cblas_dcopy(size, f, 1, r, 1); ///< r0 = f
+	cblas_daxpy(size, -1.0, b, 1, r, 1); /// r0 = r0 - b
 	cblas_dsbmv(CblasColMajor, CblasUpper, size, Ny,-1.0, A, lda, x, 1, 1.0, r, 1);         ///< r0 = b - Ax0
 	cblas_dcopy(size, r, 1, p, 1); ///< p0 = r0
 	int k = 0;
@@ -84,7 +90,6 @@ void PoissonSolver::Solve(double *x,  double *f)
 		cblas_daxpy(size, -alpha, t, 1, r, 1); ///r_{k+1} = r_k - alpha_k * t
 		/// take norm2 as the criteria of iteration
 		eps = cblas_dnrm2(size, r, 1);
-		cout << "eps: " << eps << endl;
 		/// avoid calling sqrt
 		if (eps < tol*tol) break;
 		beta = cblas_ddot(size, r, 1, r, 1) / beta; ///beta_k = r_{k+1}^T * r_{k+1} / dbeta
@@ -93,7 +98,7 @@ void PoissonSolver::Solve(double *x,  double *f)
 		cblas_dcopy(size, t, 1, p, 1); /// p_{k+1} = t;
 		
 		k++;
-	}while(k < 500);// maximum number of iteration
+	}while(1);// maximum number of iteration
 	
 	delete[] r;
 	delete[] p;

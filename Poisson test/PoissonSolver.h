@@ -1,3 +1,6 @@
+#ifndef POISSON_SOLVER
+#define POISSON_SOLVER
+
 /**
  * @class PoissonSolver
  * @brief Solving the poisson problem Ax + b = f using Conjugate Gradient algotithm
@@ -26,3 +29,4 @@ private:
 	double *b = nullptr;        ///< store boundary vector
 };
 
+#endif

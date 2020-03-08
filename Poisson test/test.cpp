@@ -2,6 +2,7 @@
 #include<fstream>
 #include<iomanip>
 #include<iostream>
+#include<cmath>
 
 using namespace std;
 
@@ -9,8 +10,8 @@ int main()
 {
 	double Lx = 1;
 	double Ly = 1;
-	int Nx = 10;
-	int Ny = 10;
+	int Nx = 100;
+	int Ny = 50;
 	Nx -= 2;
 	Ny -= 2;
 	double dx = Lx/(Nx+1);
@@ -21,7 +22,18 @@ int main()
 	double *bot = new double[Nx]();
 	double *left = new double[Ny]();
 	double *right = new double[Ny]();
-	
+
+	for (int i = 0; i < Nx; i++)
+	{
+		top[i] = sin(i*dx);
+		bot[i] = 0;
+	}
+	for (int j = 0; j < Ny; j++)
+	{
+		left[j]= 2;
+		right[j] = 5;
+	}
+
 	double *x = new double[size]();
 	double *f = new double[size]();
 	
@@ -29,14 +41,15 @@ int main()
 	{
 		for (int j = 0; j < Ny; j++)
 		{
-			x[i*Ny+ j] = 5*i+j;
-			// f = 2x + 3y
-			f[i*Ny + j] = 2*i*dx + 3*j*dy;
+			x[i*Ny+ j] = 0.0;
+			
+			f[i*Ny + j] = 10*sin(i*dx)*cos(j*dy);
 		}
 	}
 
 	PoissonSolver test(Nx, Ny, dx, dy);
 	test.SetBoundary(top, left, bot, right);
+	//test.Solvelapack(x, f);
 	test.Solve(x, f);
 
 	

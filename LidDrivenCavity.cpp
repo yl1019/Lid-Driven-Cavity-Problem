@@ -10,13 +10,15 @@
 
 /* Constructor and destructor
 ======================================================================== */
-LidDrivenCavity::LidDrivenCavity(MPI_Comm mygrid, int rank, int *coords, int *neighbor, int nx,
-	       	int ny, double deltat, double finalt, double re, double dx, double dy, bool &dt_flag)
+LidDrivenCavity::LidDrivenCavity(MPI_Comm mygrid, int rank, int *coords, double *start, int *neighbor,
+	       	int nx,	int ny, double deltat, double finalt, double re, double dx, double dy,
+	       	bool &dt_flag)
 {
 	this->mygrid = mygrid;
 	this->rank = rank;
 	memcpy(this->coords, coords, 2*sizeof(int));
 	memcpy(this->neighbor, neighbor, 4*sizeof(int));
+	memcpy(this->start, start, 2*sizeof(double));
 	Nx = nx;
 	Ny = ny;
 	T = finalt;
@@ -73,7 +75,7 @@ bool LidDrivenCavity::SetTimeStep(double deltat)
    }
    catch (const std::logic_error &e)
    {
-	std::cout << "An error occured: " << e.what() << std::endl;
+	if (rank == 0) std::cout << "An error occured: " << e.what() << std::endl;
 	return 0;
    }
    return 1;
@@ -263,25 +265,24 @@ void LidDrivenCavity::Integrate()
  */
 void LidDrivenCavity::VorticityBCs()
 {
-	static double U = 1.0;
-	// Top boundary
+	/// Top boundary
 	for (int i = 0; i < Nx; i++)
 	{
 		v_top[i] = (s_top[i] - s[i*Ny+(Ny-1)]) * 2
 		      / (dy*dy) - 2*U/dy;
 	}
-	// Bottom boundary
+	/// Bottom boundary
 	for (int i = 0; i < Nx; i++)
 	{
 		v_bot[i] = (s_bot[i] - s[i*Ny]) * 2 / (dy*dy);
 	}
 
-	// Left boundary
+	/// Left boundary
 	for (int j = 0; j < Ny; j++)
 	{
 		 v_left[j] =(s_left[j] - s[j]) * 2 / (dx*dx); 
 	}
-	// Right boundary
+	/// Right boundary
 	for (int j = 0; j < Ny; j++)
 	{
 		 v_right[j] = (s_right[j] - s[(Nx-1)*Ny+j]) * 2
@@ -383,28 +384,126 @@ void LidDrivenCavity::SolvePoisson()
 }
 
 /**
+ * @brief Send and receive messages to neighbor domains
+ */
+void LidDrivenCavity::SendAndRecv()
+{
+	/// Left to right
+	MPI_Sendrecv(s + (Nx-1)*Ny, Ny, MPI_DOUBLE, neighbor[3], 3, s_left, Ny,
+			MPI_DOUBLE, neighbor[1], 1, mygrid, MPI_STATUS_IGNORE);
+
+	/// Right to left
+	MPI_Sendrecv(s, Ny, MPI_DOUBLE, neighbor[1], 1, s_right, Ny,
+			MPI_DOUBLE, neighbor[3], 3, mygrid, MPI_STATUS_IGNORE);
+	
+	/// Top to bottom
+	// extract temporary bottom boundary vector
+	double *temp_bot = new double(Nx);
+	cblas_dcopy(Nx, s, Ny, temp_bot, 1);
+	MPI_Sendrecv(temp_bot, Nx, MPI_DOUBLE, neighbor[2], 2, s_top, Nx,
+			MPI_DOUBLE, neighbor[0], 0, mygrid, MPI_STATUS_IGNORE);
+	/// Bottom to top
+	// extract temporary top boundary vector
+	double *temp_top = new double(Nx);
+	cblas_dcopy(Nx, s + Ny-1, Ny, temp_top, 1);
+	MPI_Sendrecv(temp_top, Nx, MPI_DOUBLE, neighbor[0], 0, s_bot, Nx,
+			MPI_DOUBLE, neighbor[2], 2, mygrid, MPI_STATUS_IGNORE);
+
+	delete[] temp_bot;
+	delete[] temp_top;
+}
+
+/**
  * @brief Output the whole domain vorticity and stream function
  */
-void LidDrivenCavity::Output()
+void LidDrivenCavity::Output(const double &Lx, const double &Ly, const int &Px, const int&Py)
 {
-	/// here only output interior values of each process
-	ofstream vOut("Vorticity.txt", ios::out | ios::trunc);
-	ofstream sOut("StreamFunction.txt", ios::out | ios::trunc);
-	vOut.precision(5);
-	sOut.precision(5);
+	/** Write header */
+	ofstream vOut("Output.txt", ios::out | ios::trunc);
+	/*if (rank == 0)
+	{	
+		vOut << setw(10) << "x" << setw(10) << "y" << setw(20) << "vorticity"
+		<< setw(20) << "stream function" << endl;
+	}*/
+	vOut.close();
 
+	/** Write interior values */
+	double x, y;
+	vOut.open("Output.txt", ios::out | ios::trunc);
+	vOut.precision(6);
 	for (int i = 0; i < Nx; i++)
 	{
 		for (int j = 0; j < Ny; j++)
 		{
-			vOut << setw(15) << v[i*Ny+j];
-			sOut << setw(15) << s[i*Ny+j];
+			x = start[0] + i*dx;
+			y = start[1] + j*dy;
+			vOut << setw(12) << x << setw(12) << y << setw(20) << v[i*Ny + j] 
+				<< setw(20) << s[i*Ny +j] << endl;
 		}
-		vOut << endl;
-		sOut << endl;
+	}
+
+	/** Write boundary values */
+	// top
+	if (coords[0] == Py - 1)
+	{
+		y = Ly;
+		for (int i = 0; i < Nx; i++)
+		{
+			x = start[0] + i*dx;
+			vOut << setw(12) << x << setw(12) << y << setw(20) << v_top[i] 
+				<< setw(20) << 0.0 << endl;
+
+		}
+	}
+	// bottom
+	if (coords[0] == 0)
+	{
+		y = 0;
+		for (int i = 0; i < Nx; i++)
+		{
+			x = start[0] + i*dx;
+			vOut << setw(12) << x << setw(12) << y << setw(20) << v_bot[i] 
+				<< setw(20) << 0.0 << endl;
+
+		}
+	}
+	// left
+	if (coords[1] == 0)
+	{
+		x = 0;
+		for (int j = 0; j < Ny; j++)
+		{
+			y = start[1] + j*dy;
+			vOut << setw(12) << x << setw(12) << y << setw(20) << v_left[j] 
+				<< setw(20) << 0.0 << endl;
+
+		}
+	}
+	// right
+	if (coords[1] == Px - 1)
+	{
+		x = Lx;
+		for (int j = 0; j < Ny; j++)
+		{
+			y = start[1] + j*dy;
+			vOut << setw(12) << x << setw(12) << y << setw(20) << v_right[j] 
+				<< setw(20) << 0.0 << endl;
+
+		}
+	}
+	// corner
+	if (rank == 0)
+	{ 
+		vOut << setw(12) << 0.0 << setw(12) << 0.0 << setw(20) << 0.0 
+				<< setw(20) << 0.0 << endl;
+		vOut << setw(12) << 0.0 << setw(12) << Ly << setw(20) << 0.0 
+				<< setw(20) << 0.0 << endl;
+		vOut << setw(12) << Lx << setw(12) << 0.0 << setw(20) << 0.0 
+				<< setw(20) << 0.0 << endl;
+		vOut << setw(12) << Lx << setw(12) << Ly << setw(20) << 0.0 
+				<< setw(20) << 0.0 << endl;
 	}
 	vOut.close();
-	sOut.close();
 }
 
 /* Solver 
@@ -425,8 +524,8 @@ void LidDrivenCavity::Solve()
 		VorticityUpdate();
 		SolvePoisson();
 		t += dt;
+		SendAndRecv();
 	}
-	Output();
 }
 
 

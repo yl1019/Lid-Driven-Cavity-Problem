@@ -16,7 +16,7 @@ class LidDrivenCavity
 {
 public:
     /** Constructor and Destructor */
-    LidDrivenCavity(MPI_Comm mygrid, int rank, int *coords, int *neighbor, int nx,
+    LidDrivenCavity(MPI_Comm mygrid, int rank, int *coords, double *start, int *neighbor, int nx,
 	       	int ny, double deltat, double finalt, double re, double dx, double dy, bool &dt_flag);
     ~LidDrivenCavity();
 
@@ -36,15 +36,18 @@ public:
     void VorticityInterior();
     void VorticityUpdate();
     void SolvePoisson();
-    void Output();
+    void SendAndRecv();
     void Solve();
+    void Output(const double &Lx, const double &Ly, const int &Px, const int &Py);
+
 
 private: 
     /** MPI configuration */
     MPI_Comm mygrid;
     int rank;
-    int coords[2];
-    int neighbor[4];
+    int coords[2];	///< coordinate in Cartesian topology
+    double start[2];	///< start global coordinate
+    int neighbor[4];	///< ranks of neighborhood
 
     /** Vorticity and streamfunction interior and boundary vectors */
     double *v = nullptr;
@@ -68,6 +71,7 @@ private:
     double Re;  ///< Reynolds number
     double dx;  ///< grid spacing in x-direction
     double dy;  ///< grid spacing in y-direction
+    double U = 1.0;
 
     /** Matrices of linear system */
     double *A = nullptr;	///< store a symmetric banded matrix of Laplacian equation

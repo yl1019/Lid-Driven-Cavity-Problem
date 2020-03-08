@@ -1,7 +1,7 @@
 clc;
 clear;
 
-n = 10;
+n = 50;
 
 file1 = fopen('Output.txt','r');
 v = fscanf(file1, '%f', [n-2 Inf])';

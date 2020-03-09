@@ -1,6 +1,6 @@
 clf;clear;clc;
 
-data = dlmread('Output.txt');
+data = dlmread('Output.txt', '', 1, 0);
 data = sortrows(data);
 x = data(:, 1);
 y = data(:, 2);

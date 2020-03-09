@@ -29,7 +29,7 @@ int main(int argc, char **argv)
     	if (!status)
 	{
 		MPI_Finalize();
-	       	return 0;
+		return 0;
 	}
     	/// Read all parameters
     	ReadVals(vm, Lx, Ly, Nx, Ny, Px, Py, dt, T, Re);
@@ -82,10 +82,9 @@ int main(int argc, char **argv)
 	/// Run the solver
         solver->Solve();
 	/// Output the result
-	solver->Output(Lx, Ly, Px, Py);
+	solver->Output(Lx, Ly, Px, Py, Nx, Ny);
 
 	/// Exit
-	// delete[] solver;
 	MPI_Finalize();
 	return 0;
 }

@@ -24,7 +24,7 @@ bool CheckWorkers(const int &np, const int &Px, const int &Py)
  */
 void FindNeighbor(MPI_Comm mygrid, int *neighbor)
 {
-	MPI_Cart_shift(mygrid, 0, 1, neighbor + 2, neighbor);	///< bot and top
+	MPI_Cart_shift(mygrid, 0, -1, neighbor + 2, neighbor);	///< bot and top
 	MPI_Cart_shift(mygrid, 1, 1, neighbor + 1, neighbor + 3);	///< left and right
 }
 
@@ -75,7 +75,7 @@ void DistributeWork(const int &rank, const int &Nx, const int &Ny, const int &Px
 	// anouncement before working
 	cout << "This is rank " << rank << ", my work load is nx = " <<  nx <<  ", ny = " <<  ny
 		<< "; start from global coords(" << start[0] << ", " << start[1] <<
-	       	") with Cartesian coords ["<< coords[0] << ", " << coords[1] << "]" << endl;
+	       	") with Cartesian coords ["<< coords[0] << ", " << coords[1] << "]." << endl; 
 }
 
 

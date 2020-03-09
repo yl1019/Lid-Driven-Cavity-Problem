@@ -30,15 +30,16 @@ public:
     void LinearMatrices();	
     void BoundaryVector(double *b, char matrix, char x);
     void Initialise();
-    void Integrate();
-
     void VorticityBCs();
     void VorticityInterior();
     void VorticityUpdate();
     void SolvePoisson();
     void SendAndRecv();
     void Solve();
-    void Output(const double &Lx, const double &Ly, const int &Px, const int &Py);
+
+    /** Methods for output */
+    void Output(const double &Lx, const double &Ly, const int &Px, const int &Py,
+		    const int &globalNx, const int &globalNy);
 
 
 private: 
@@ -66,8 +67,6 @@ private:
     double T;	///< terminal time
     int    Nx;  ///< number of interior grid points in x-direction
     int    Ny; 	///< number of interior grid points in y-direction
-    double Lx;  ///< length of subdomain in x-direction
-    double Ly;  ///< length of subdomain in y-direction
     double Re;  ///< Reynolds number
     double dx;  ///< grid spacing in x-direction
     double dy;  ///< grid spacing in y-direction

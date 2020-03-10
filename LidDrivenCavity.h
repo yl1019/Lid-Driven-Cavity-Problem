@@ -39,8 +39,8 @@ public:
 
     /** Methods for output */
     void Output(const double &Lx, const double &Ly, const int &Px, const int &Py,
-		    const int &globalNx, const int &globalNy);
-
+		     int globalNx, int globalNy);
+    void OUTPUT(int Px, int Py, double Lx, double Ly);
 
 private: 
     /** MPI configuration */

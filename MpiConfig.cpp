@@ -24,7 +24,7 @@ bool CheckWorkers(const int &np, const int &Px, const int &Py)
  */
 void FindNeighbor(MPI_Comm mygrid, int *neighbor)
 {
-	MPI_Cart_shift(mygrid, 0, -1, neighbor + 2, neighbor);	///< bot and top
+	MPI_Cart_shift(mygrid, 0, -1, neighbor , neighbor + 2);	///< bot and top
 	MPI_Cart_shift(mygrid, 1, 1, neighbor + 1, neighbor + 3);	///< left and right
 }
 

@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 	/** Work before operating */
 	MPI_Comm mygrid;
 	const int dims = 2;
-	int sizes[dims] = {Px, Py};
+	int sizes[dims] = {Py, Px};
 	int periods[dims] = {0, 0};
 	int reorder = 0;
 	/// Create a new communicator based on Cartesian Topology
@@ -62,12 +62,17 @@ int main(int argc, char **argv)
 	int neighbor[4] = {0};
 	/// Obtain neighborhood information for each rank
 	FindNeighbor(mygrid, neighbor);
+	
+//	cout << "rank " << rank << " 's neighbor is " << neighbor[0] << "  "
+//	    <<   	neighbor[1] << "  " << neighbor[2] << " " << neighbor[3] << endl;
+
 	int nx, ny;	///< number of grids for each rank
 	double start[2] = {0.0, 0.0};
 	/// Distribute work to each process
 	DistributeWork(rank, Nx, Ny, Px, Py, dx, dy, coords, start, nx, ny);
 		
-
+//	MPI_Finalize();
+//	return 0;
 
 	/** Solving the main problem */
 	bool dt_flag;
@@ -82,7 +87,9 @@ int main(int argc, char **argv)
 	/// Run the solver
         solver->Solve();
 	/// Output the result
-	solver->Output(Lx, Ly, Px, Py, Nx, Ny);
+	solver->OUTPUT(Px, Py, Lx, Ly);
+	//solver->Output(Lx, Ly, Px, Py, Nx-2, Ny-2);
+
 
 	/// Exit
 	MPI_Finalize();

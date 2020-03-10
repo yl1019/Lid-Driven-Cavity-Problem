@@ -263,28 +263,41 @@ void LidDrivenCavity::Initialise()
  */
 void LidDrivenCavity::VorticityBCs()
 {
-	/// Top boundary
-	for (int i = 0; i < Nx; i++)
+	/** Top boundary */
+	if (neighbor[0] == -2)
 	{
-		v_top[i] = (s_top[i] - s[i*Ny+(Ny-1)]) * 2
-		      / (dy*dy) - 2*U/dy;
+		for (int i = 0; i < Nx; i++)
+		{
+			v_top[i] = (s_top[i] - s[i*Ny+(Ny-1)]) * 2
+		     	 / (dy*dy) - 2*U/dy;
+		}
 	}
-	/// Bottom boundary
-	for (int i = 0; i < Nx; i++)
+	/** Bottom boundary */
+	if (neighbor[2] == -2)
 	{
-		v_bot[i] = (s_bot[i] - s[i*Ny]) * 2 / (dy*dy);
+		for (int i = 0; i < Nx; i++)
+		{
+			v_bot[i] = (s_bot[i] - s[i*Ny]) * 2 / (dy*dy);
+		}
 	}
 
-	/// Left boundary
-	for (int j = 0; j < Ny; j++)
+	/** Left boundary */
+	if (neighbor[1] == -2)
 	{
-		 v_left[j] =(s_left[j] - s[j]) * 2 / (dx*dx); 
+		for (int j = 0; j < Ny; j++)
+		{	
+			 v_left[j] =(s_left[j] - s[j]) * 2 / (dx*dx); 
+		}
 	}
-	/// Right boundary
-	for (int j = 0; j < Ny; j++)
+
+	/** Right boundary */
+	if (neighbor[3] == -2)
 	{
-		 v_right[j] = (s_right[j] - s[(Nx-1)*Ny+j]) * 2
+		for (int j = 0; j < Ny; j++)
+		{
+			 v_right[j] = (s_right[j] - s[(Nx-1)*Ny+j]) * 2
 			 / (dx*dx);
+		}
 	}
 }
 
@@ -386,39 +399,112 @@ void LidDrivenCavity::SolvePoisson()
  */
 void LidDrivenCavity::SendAndRecv()
 {
-	/// bot, left, top, right
-	cout << "MP begin:" << endl;
-	cout << "rank " << rank << " 's neighbor is " << neighbor[0] << neighbor [1]
-		<< neighbor[2] << neighbor[3] << endl;
 
-	/// Left to right
-	MPI_Send(s + (Nx-1)*Ny, Ny, MPI_DOUBLE, neighbor[3], 3, mygrid);
-	MPI_Recv(s_left, Ny, MPI_DOUBLE, neighbor[1], 1, mygrid, MPI_STATUS_IGNORE);
-//	MPI_Sendrecv(s + (Nx-1)*Ny, Ny, MPI_DOUBLE, neighbor[3], 3, s_left, Ny,
-//			MPI_DOUBLE, neighbor[1], 1, mygrid, MPI_STATUS_IGNORE);
-	cout << "rank " << rank << " just sent a message to rank " << neighbor[3] << endl;
-	cout << "rank " << rank << " just receive a message from rank " << neighbor[1] << endl;
-	
-	/// Right to left
+
+/*	cout << "at the beginning, rank " << rank << " : s = " << endl;
+	for (int i = 0; i < size ; i++)
+	{
+		cout << setw(5) << s[i] << endl;
+	}*/
+
+	// neighbor = {top, left, bot, right}
+/*	
+	cout << "before left to right, rank " << rank << " : s = " << endl;
+	for (int i = 0; i < size ; i++)
+	{
+		cout << setw(5) << s[i] << endl;
+	}
+	cout << "before left to right, rank " << rank << " : s_left = " << endl;
+	for (int i = 0; i < Ny ; i++)
+	{
+		cout << setw(5) << s_left[i] << endl;
+	}
+	cout << "before left to right, rank " << rank << " : s_right = " << endl;
+	for (int i = 0; i < Ny ; i++)
+	{
+		cout << setw(5) << s_right[i] << endl;
+	}
+*/
+
+	/** Left to right */
+	MPI_Sendrecv(s + (Nx-1)*Ny, Ny, MPI_DOUBLE, neighbor[3], 3, s_left, Ny,
+			MPI_DOUBLE, neighbor[1], 3, mygrid, MPI_STATUS_IGNORE);
+
+/*	cout << "after left to right, rank " << rank << " : s = " << endl;
+	for (int i = 0; i < size ; i++)
+	{
+		cout << setw(5) << s[i] << endl;
+	}
+	cout << "after left to right, rank " << rank << " : s_left = " << endl;
+	for (int i = 0; i < Ny ; i++)
+	{
+		cout << setw(5) << s_left[i] << endl;
+	}
+	cout << "after left to right, rank " << rank << " : s_right = " << endl;
+	for (int i = 0; i < Ny ; i++)
+	{
+		cout << setw(5) << s_right[i] << endl;
+	}
+*/	
+
+	/** Right to left */
 	MPI_Sendrecv(s, Ny, MPI_DOUBLE, neighbor[1], 1, s_right, Ny,
-			MPI_DOUBLE, neighbor[3], 3, mygrid, MPI_STATUS_IGNORE);
+			MPI_DOUBLE, neighbor[3], 1, mygrid, MPI_STATUS_IGNORE);
 
-	cout << "rank " << rank << " just sent a message to rank " << neighbor[3] << endl;
-	cout << "rank " << rank << " just receive a message from rank " << neighbor[1] << endl;
-
-
-	/// Top to bottom
+	/** Top to bottom */
 	// extract temporary bottom boundary vector
 	double temp_bot[Nx];
+/*	cout << "before copy, rank " << rank << " : s = " << endl;
+	for (int i = 0; i < size ; i++)
+	{
+		cout << setw(5) << s[i] << endl;
+	}
+*/
 	cblas_dcopy(Nx, s, Ny, temp_bot, 1);
+/*
+	cout << "before top to bot, rank " << rank << " : s = " << endl;
+	for (int i = 0; i < size ; i++)
+	{
+		cout << setw(5) << s[i] << endl;
+	}
+	cout << "before top to bot, rank " << rank << " : s_top = " << endl;
+	for (int i = 0; i < Ny ; i++)
+	{
+		cout << setw(5) << s_top[i] << endl;
+	}
+	cout << "before top to bot, rank " << rank << " : s_bot = " << endl;
+	for (int i = 0; i < Ny ; i++)
+	{
+		cout << setw(5) << s_bot[i] << endl;
+	}
+*/
+
 	MPI_Sendrecv(temp_bot, Nx, MPI_DOUBLE, neighbor[2], 2, s_top, Nx,
-			MPI_DOUBLE, neighbor[0], 0, mygrid, MPI_STATUS_IGNORE);
-	/// Bottom to top
+			MPI_DOUBLE, neighbor[0], 2, mygrid, MPI_STATUS_IGNORE);
+
+/*	cout << "after top to bot, rank " << rank << " : s = " << endl;
+	for (int i = 0; i < size ; i++)
+	{
+		cout << setw(5) << s[i] << endl;
+	}
+	cout << "after top to bot, rank " << rank << " : s_top = " << endl;
+	for (int i = 0; i < Ny ; i++)
+	{
+		cout << setw(5) << s_top[i] << endl;
+	}
+	cout << "after top to bot, rank " << rank << " : s_bot = " << endl;
+	for (int i = 0; i < Ny ; i++)
+	{
+		cout << setw(5) << s_bot[i] << endl;
+	}
+*/
+	/** Bottom to top */
 	// extract temporary top boundary vector
 	double temp_top[Nx];
 	cblas_dcopy(Nx, s + Ny-1, Ny, temp_top, 1);
 	MPI_Sendrecv(temp_top, Nx, MPI_DOUBLE, neighbor[0], 0, s_bot, Nx,
-			MPI_DOUBLE, neighbor[2], 2, mygrid, MPI_STATUS_IGNORE);
+			MPI_DOUBLE, neighbor[2], 0, mygrid, MPI_STATUS_IGNORE);
+
 }
 
 /* Solver 
@@ -437,7 +523,19 @@ void LidDrivenCavity::Solve()
 		VorticityBCs();
 		VorticityInterior();
 		VorticityUpdate();
+
+	/*	cout << "before poisson, rank " << rank << " : v = " << endl;
+		for (int i = 0; i < size ; i++)
+		{
+			cout << setw(5) << v[i] << endl;
+		}
+*/
 		SolvePoisson();
+/*		cout << "after poisson, rank " << rank << " : s = " << endl;
+		for (int i = 0; i < size ; i++)
+		{
+			cout << setw(5) << s[i] << endl;
+		}*/
 		t += dt;
 		SendAndRecv();
 	}
@@ -449,8 +547,10 @@ void LidDrivenCavity::Solve()
  * @brief Gather information from all processes to rank 0 and
  * Output the whole domain vorticity and stream function
  */
+
+
 void LidDrivenCavity::Output(const double &Lx, const double &Ly, const int &Px,
-	       	const int&Py, const int &globalNx, const int &globalNy)
+	       	const int&Py, int globalNx, int globalNy)
 {
 	/** Create memory to store global interior and boundary values */
 	double *V = nullptr;
@@ -474,22 +574,24 @@ void LidDrivenCavity::Output(const double &Lx, const double &Ly, const int &Px,
 		V_left = new double[globalNy];
 		V_bot = new double[globalNx];
 		V_right = new double[globalNy];
-		// memory for starting global coordinates
 		start_x = new double[Px * Py];
 		start_y = new double[Px * Py];
-		// memory for number of grids per process
 		NX = new int[Px * Py];
 		NY = new int[Px * Py];
 	}
 
 	/** Collate local contributions */
-	MPI_Gather(v, size, MPI_DOUBLE, V, size, MPI_DOUBLE, 0, mygrid);	
+	MPI_Gather(v, size, MPI_DOUBLE, V, size, MPI_DOUBLE, 0, mygrid);
 	MPI_Gather(s, size, MPI_DOUBLE, S, size, MPI_DOUBLE, 0, mygrid);
+
+
+
+
 	/// top boundary
 	if (coords[0] == Py - 1)
 	{
 		MPI_Gather(v_top, Nx, MPI_DOUBLE, V_top, Nx, MPI_DOUBLE, 0, mygrid);
-	}
+	}	
 	/// left boundary
 	if (coords[1] == 0)
 	{
@@ -505,12 +607,36 @@ void LidDrivenCavity::Output(const double &Lx, const double &Ly, const int &Px,
 	{
 		MPI_Gather(v_right, Ny, MPI_DOUBLE, V_right, Ny, MPI_DOUBLE, 0, mygrid);
 	}
+
+
+	cout << "rank " << rank << " : " << endl;
+	for (int i = 0; i < 2; i++)
+	{
+		cout << setw(15) << start[i];
+	}
+	cout << endl;
 	/// starting coordinates
-	MPI_Gather(start, 1, MPI_DOUBLE, start_x, 1, MPI_DOUBLE, 0, mygrid);
-	MPI_Gather(start+1, 1, MPI_DOUBLE, start_y, 1, MPI_DOUBLE, 0, mygrid);
+	//
+	MPI_Gather(&start[0], 1, MPI_DOUBLE, start_x, 1, MPI_DOUBLE, 0, mygrid);
+//	MPI_Gather(&start[1], 1, MPI_DOUBLE, start_y, 1, MPI_DOUBLE, 0, mygrid);
+	if (rank == 0){
+		cout << "x is " << endl;
+	for (int i = 0; i < Px*Py ; i++)
+	{
+		cout << setw(15) << start_x[i];
+	}
+	cout << endl;}
+/*	if (rank == 0){
+		cout << "y is " << endl;
+	for (int i = 0; i < Px*Py ; i++)
+	{
+		cout << setw(15) << start_y[i];
+	}
+	cout << endl;}
+*/
 	/// number of grids
-	MPI_Gather(&Nx, 1, MPI_INT, NX, 1, MPI_INT, 0, mygrid);
-	MPI_Gather(&Ny, 1, MPI_INT, NY, 1, MPI_INT, 0, mygrid);
+//	MPI_Gather(&Nx, 1, MPI_INT, NX, 1, MPI_INT, 0, mygrid);
+//	MPI_Gather(&Ny, 1, MPI_INT, NY, 1, MPI_INT, 0, mygrid);
 
 	/** Output to file */
 	if (rank == 0)
@@ -612,3 +738,115 @@ void LidDrivenCavity::Output(const double &Lx, const double &Ly, const int &Px,
 }
 
 
+
+
+
+
+void LidDrivenCavity::OUTPUT(int Px, int Py, double Lx, double Ly)
+{
+	for (int k = 0; k < size; k++)
+	{
+		if (k == 0 && rank == 0)
+		{
+			ofstream vOut("Output.txt", ios::out | ios::trunc);
+			double x, y;
+			/** Write header */
+			vOut << setw(12) << "x" << setw(12) << "y" << setw(20) << "vorticity"
+			<< setw(20) << "stream function" << endl;
+			/** Write corner values */
+			vOut << setw(12) << 0.0 << setw(12) << 0.0 << setw(20) << 0.0 
+				<< setw(20) << 0.0 << endl;
+			vOut << setw(12) << 0.0 << setw(12) << Ly << setw(20) << 0.0 
+				<< setw(20) << 0.0 << endl;
+			vOut << setw(12) << Lx << setw(12) << 0.0 << setw(20) << 0.0 
+				<< setw(20) << 0.0 << endl;
+			vOut << setw(12) << Lx << setw(12) << Ly << setw(20) << 0.0 
+				<< setw(20) << 0.0 << endl;
+
+			/** Write interior values */
+			vOut.precision(6);
+			for (int i = 0; i < Nx; i++)
+			{
+				for (int j = 0; j < Ny; j++)
+				{	
+					x = start[0] + i*dx;
+					y = start[1] + j*dy;
+					vOut << setw(12) << x << setw(12) << y << setw(20) << v[i*Ny + j] 
+						<< setw(20) << s[i*Ny + j] << endl;
+				}
+			}
+			
+			vOut.close();
+		}
+		else if (k == rank)
+		{
+			ofstream vOut("Output.txt", ios::out | ios::app);
+			double x, y;
+			/** Write interior values */
+			vOut.precision(6);
+			for (int i = 0; i < Nx; i++)
+			{
+				for (int j = 0; j < Ny; j++)
+				{	
+					x = start[0] + i*dx;
+					y = start[1] + j*dy;
+					vOut << setw(12) << x << setw(12) << y << setw(20) << v[i*Ny + j] 					
+						<< setw(20) << s[i*Ny + j] << endl;
+				}
+			}
+			vOut.close();
+		}
+		MPI_Barrier(mygrid);
+	}
+
+
+	/** Write boundary values */
+		ofstream vOut("Output.txt", ios::out | ios::app);
+		double x, y;
+
+		// top 
+		if (coords[0] == Py - 1)
+		{
+			y = Ly;
+			for (int i = 0; i < Nx; i++)
+			{
+				x = start[0] + i*dx;
+				vOut << setw(12) << x << setw(12) << y << setw(20) << v_top[i] 
+				<< setw(20) << 0.0 << endl;
+			}		
+		}
+		// left
+		if (coords[1] == 0)
+		{
+			x = 0;
+			for (int j = 0; j < Ny; j++)
+			{
+				y = start[1] + j*dy;
+				vOut << setw(12) << x << setw(12) << y << setw(20) << v_left[j] 
+				<< setw(20) << 0.0 << endl;
+			}		
+		}
+		// bottom
+		if (coords[0] == 0)
+		{
+			y = 0;
+			for (int i = 0; i < Nx; i++)
+			{
+				x = start[0] + i*dx;
+				vOut << setw(12) << x << setw(12) << y << setw(20) << v_bot[i] 
+				<< setw(20) << 0.0 << endl;
+			}		
+		}
+		// left
+		if (coords[1] == Px - 1)
+		{
+			x = Lx;
+			for (int j = 0; j < Ny; j++)
+			{
+				y = start[1] + j*dy;
+				vOut << setw(12) << x << setw(12) << y << setw(20) << v_right[j] 
+				<< setw(20) << 0.0 << endl;
+			}		
+		}
+		vOut.close();
+}

@@ -71,7 +71,13 @@ void PoissonSolver::SetBoundary(const double *top, const double *left, const dou
  * @param f	Source vector 
  */
 void PoissonSolver::Solve(double *x, const double *f)
-{	
+{
+	if (cblas_dnrm2(size, f, 1) == 0 && cblas_dnrm2(size, f, 1) == 0)
+	{
+		memset(x, 0.0, size*sizeof(double));
+		return;
+	}	
+
 	double *r = new double[size];
 	double *p = new double[size];
 	double *t = new double[size]; ///< for temporary use

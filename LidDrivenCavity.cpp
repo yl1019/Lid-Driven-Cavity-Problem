@@ -391,61 +391,18 @@ void LidDrivenCavity::SolvePoisson()
 	/// Create a new PoissonSolver instance and solve Poisson problem
 	if (ps == nullptr)    ps = new PoissonSolver(Nx, Ny, dx, dy);
 	ps->SetBoundary(s_top, s_left, s_bot, s_right);
-	ps->Solve(s, v);
+	ps->Solve_Chol(s, v);
+	//ps->Solve_Conj(s, v);
 }
 
 /**
- * @brief Send and receive messages to neighbor domains
+ * @brief Send and receive stream function to neighbor domains
  */
-void LidDrivenCavity::SendAndRecv()
+void LidDrivenCavity::SendAndRecv_s()
 {
-
-
-/*	cout << "at the beginning, rank " << rank << " : s = " << endl;
-	for (int i = 0; i < size ; i++)
-	{
-		cout << setw(5) << s[i] << endl;
-	}*/
-
-	// neighbor = {top, left, bot, right}
-/*	
-	cout << "before left to right, rank " << rank << " : s = " << endl;
-	for (int i = 0; i < size ; i++)
-	{
-		cout << setw(5) << s[i] << endl;
-	}
-	cout << "before left to right, rank " << rank << " : s_left = " << endl;
-	for (int i = 0; i < Ny ; i++)
-	{
-		cout << setw(5) << s_left[i] << endl;
-	}
-	cout << "before left to right, rank " << rank << " : s_right = " << endl;
-	for (int i = 0; i < Ny ; i++)
-	{
-		cout << setw(5) << s_right[i] << endl;
-	}
-*/
-
 	/** Left to right */
 	MPI_Sendrecv(s + (Nx-1)*Ny, Ny, MPI_DOUBLE, neighbor[3], 3, s_left, Ny,
 			MPI_DOUBLE, neighbor[1], 3, mygrid, MPI_STATUS_IGNORE);
-
-/*	cout << "after left to right, rank " << rank << " : s = " << endl;
-	for (int i = 0; i < size ; i++)
-	{
-		cout << setw(5) << s[i] << endl;
-	}
-	cout << "after left to right, rank " << rank << " : s_left = " << endl;
-	for (int i = 0; i < Ny ; i++)
-	{
-		cout << setw(5) << s_left[i] << endl;
-	}
-	cout << "after left to right, rank " << rank << " : s_right = " << endl;
-	for (int i = 0; i < Ny ; i++)
-	{
-		cout << setw(5) << s_right[i] << endl;
-	}
-*/	
 
 	/** Right to left */
 	MPI_Sendrecv(s, Ny, MPI_DOUBLE, neighbor[1], 1, s_right, Ny,
@@ -454,50 +411,11 @@ void LidDrivenCavity::SendAndRecv()
 	/** Top to bottom */
 	// extract temporary bottom boundary vector
 	double temp_bot[Nx];
-/*	cout << "before copy, rank " << rank << " : s = " << endl;
-	for (int i = 0; i < size ; i++)
-	{
-		cout << setw(5) << s[i] << endl;
-	}
-*/
 	cblas_dcopy(Nx, s, Ny, temp_bot, 1);
-/*
-	cout << "before top to bot, rank " << rank << " : s = " << endl;
-	for (int i = 0; i < size ; i++)
-	{
-		cout << setw(5) << s[i] << endl;
-	}
-	cout << "before top to bot, rank " << rank << " : s_top = " << endl;
-	for (int i = 0; i < Ny ; i++)
-	{
-		cout << setw(5) << s_top[i] << endl;
-	}
-	cout << "before top to bot, rank " << rank << " : s_bot = " << endl;
-	for (int i = 0; i < Ny ; i++)
-	{
-		cout << setw(5) << s_bot[i] << endl;
-	}
-*/
 
 	MPI_Sendrecv(temp_bot, Nx, MPI_DOUBLE, neighbor[2], 2, s_top, Nx,
 			MPI_DOUBLE, neighbor[0], 2, mygrid, MPI_STATUS_IGNORE);
 
-/*	cout << "after top to bot, rank " << rank << " : s = " << endl;
-	for (int i = 0; i < size ; i++)
-	{
-		cout << setw(5) << s[i] << endl;
-	}
-	cout << "after top to bot, rank " << rank << " : s_top = " << endl;
-	for (int i = 0; i < Ny ; i++)
-	{
-		cout << setw(5) << s_top[i] << endl;
-	}
-	cout << "after top to bot, rank " << rank << " : s_bot = " << endl;
-	for (int i = 0; i < Ny ; i++)
-	{
-		cout << setw(5) << s_bot[i] << endl;
-	}
-*/
 	/** Bottom to top */
 	// extract temporary top boundary vector
 	double temp_top[Nx];
@@ -506,6 +424,37 @@ void LidDrivenCavity::SendAndRecv()
 			MPI_DOUBLE, neighbor[2], 0, mygrid, MPI_STATUS_IGNORE);
 
 }
+
+/**
+ * @brief Send and receive vorticity to neighbor domains
+ */
+void LidDrivenCavity::SendAndRecv_v()
+{
+	/** Left to right */
+	MPI_Sendrecv(v + (Nx-1)*Ny, Ny, MPI_DOUBLE, neighbor[3], 3, v_left, Ny,
+			MPI_DOUBLE, neighbor[1], 3, mygrid, MPI_STATUS_IGNORE);
+
+	/** Right to left */
+	MPI_Sendrecv(v, Ny, MPI_DOUBLE, neighbor[1], 1, v_right, Ny,
+			MPI_DOUBLE, neighbor[3], 1, mygrid, MPI_STATUS_IGNORE);
+
+	/** Top to bottom */
+	// extract temporary bottom boundary vector
+	double temp_bot[Nx];
+	cblas_dcopy(Nx, v, Ny, temp_bot, 1);
+
+	MPI_Sendrecv(temp_bot, Nx, MPI_DOUBLE, neighbor[2], 2, v_top, Nx,
+			MPI_DOUBLE, neighbor[0], 2, mygrid, MPI_STATUS_IGNORE);
+
+	/** Bottom to top */
+	// extract temporary top boundary vector
+	double temp_top[Nx];
+	cblas_dcopy(Nx, v + Ny-1, Ny, temp_top, 1);
+	MPI_Sendrecv(temp_top, Nx, MPI_DOUBLE, neighbor[0], 0, v_bot, Nx,
+			MPI_DOUBLE, neighbor[2], 0, mygrid, MPI_STATUS_IGNORE);
+
+}
+
 
 /* Solver 
 ======================================================================== */
@@ -522,247 +471,55 @@ void LidDrivenCavity::Solve()
 		if (rank == 0) cout << "t = " << t << endl;
 		VorticityBCs();
 		VorticityInterior();
-		VorticityUpdate();
 
-	/*	cout << "before poisson, rank " << rank << " : v = " << endl;
-		for (int i = 0; i < size ; i++)
+		SendAndRecv_v();
+		VorticityUpdate();
+		
+		for (int i = 0; i < 5; i++)
 		{
-			cout << setw(5) << v[i] << endl;
+			SolvePoisson();
+			SendAndRecv_s();
 		}
-*/
-		SolvePoisson();
-/*		cout << "after poisson, rank " << rank << " : s = " << endl;
-		for (int i = 0; i < size ; i++)
-		{
-			cout << setw(5) << s[i] << endl;
-		}*/
 		t += dt;
-		SendAndRecv();
 	}
 }
 
 /* Output 
 ======================================================================== */
 /**
- * @brief Gather information from all processes to rank 0 and
- * Output the whole domain vorticity and stream function
+ * @brief Output the result in each process
+ * @param Px	number of processes in x direction
+ * @param Py	number of processes in y direction
+ * @param Lx	length of domain in x direction	
+ * @param Ly	length of domain in y direction	
  */
-
-
-void LidDrivenCavity::Output(const double &Lx, const double &Ly, const int &Px,
-	       	const int&Py, int globalNx, int globalNy)
+void LidDrivenCavity::Output(int Px, int Py, double Lx, double Ly)
 {
-	/** Create memory to store global interior and boundary values */
-	double *V = nullptr;
-	double *S = nullptr;	
-	double *V_top = nullptr;
-	double *V_left = nullptr;
-	double *V_bot = nullptr;
-	double *V_right = nullptr;
-	// memory for starting global coordinates
-	double *start_x = nullptr;
-	double *start_y = nullptr;
-	// memory for number of grids per process
-	int *NX = nullptr;
-	int *NY = nullptr;
-
-	if (rank == 0)
+	for (int k = 0; k < Px *Py; k++)
 	{
-		V = new double[globalNx * globalNy];	
-		S = new double[globalNx * globalNy];	
-		V_top = new double[globalNx];
-		V_left = new double[globalNy];
-		V_bot = new double[globalNx];
-		V_right = new double[globalNy];
-		start_x = new double[Px * Py];
-		start_y = new double[Px * Py];
-		NX = new int[Px * Py];
-		NY = new int[Px * Py];
-	}
-
-	/** Collate local contributions */
-	MPI_Gather(v, size, MPI_DOUBLE, V, size, MPI_DOUBLE, 0, mygrid);
-	MPI_Gather(s, size, MPI_DOUBLE, S, size, MPI_DOUBLE, 0, mygrid);
-
-
-
-
-	/// top boundary
-	if (coords[0] == Py - 1)
-	{
-		MPI_Gather(v_top, Nx, MPI_DOUBLE, V_top, Nx, MPI_DOUBLE, 0, mygrid);
-	}	
-	/// left boundary
-	if (coords[1] == 0)
-	{
-		MPI_Gather(v_left, Ny, MPI_DOUBLE, V_left, Ny, MPI_DOUBLE, 0, mygrid);
-	}
-	/// bottom boundary
-	if (coords[0] == 0)
-	{
-		MPI_Gather(v_bot, Nx, MPI_DOUBLE, V_bot, Nx, MPI_DOUBLE, 0, mygrid);
-	}
-	/// right boundary
-	if (coords[1] == Px - 1)
-	{
-		MPI_Gather(v_right, Ny, MPI_DOUBLE, V_right, Ny, MPI_DOUBLE, 0, mygrid);
-	}
-
-
-	cout << "rank " << rank << " : " << endl;
-	for (int i = 0; i < 2; i++)
-	{
-		cout << setw(15) << start[i];
-	}
-	cout << endl;
-	/// starting coordinates
-	//
-	MPI_Gather(&start[0], 1, MPI_DOUBLE, start_x, 1, MPI_DOUBLE, 0, mygrid);
-//	MPI_Gather(&start[1], 1, MPI_DOUBLE, start_y, 1, MPI_DOUBLE, 0, mygrid);
-	if (rank == 0){
-		cout << "x is " << endl;
-	for (int i = 0; i < Px*Py ; i++)
-	{
-		cout << setw(15) << start_x[i];
-	}
-	cout << endl;}
-/*	if (rank == 0){
-		cout << "y is " << endl;
-	for (int i = 0; i < Px*Py ; i++)
-	{
-		cout << setw(15) << start_y[i];
-	}
-	cout << endl;}
-*/
-	/// number of grids
-//	MPI_Gather(&Nx, 1, MPI_INT, NX, 1, MPI_INT, 0, mygrid);
-//	MPI_Gather(&Ny, 1, MPI_INT, NY, 1, MPI_INT, 0, mygrid);
-
-	/** Output to file */
-	if (rank == 0)
-	{	
-		ofstream vOut("Output.txt", ios::out | ios::trunc);
-
-		/** Write header */
-		vOut << setw(12) << "x" << setw(12) << "y" << setw(20) << "vorticity"
-		<< setw(20) << "stream function" << endl;
-
-		/** Write interior values */
-		vOut.precision(6);
-		double x, y;
-		int p = 0;	///< indicate the position of output
-		for (int k = 0; k < Px * Py; k++)	///< go through data of each process	
-		{
-			for (int i = 0; i < NX[k]; i++)
+		if (k == rank)
+		{	
+			/** Write header and corner values */
+			if (k == 0)
 			{
-				for (int j = 0; j < NY[k]; j++)
-				{	
-					x = start_x[k] + i*dx;
-					y = start_y[k] + j*dy;
-					vOut << setw(12) << x << setw(12) << y << setw(20) << V[p] 
-						<< setw(20) << S[p] << endl;
-					p++;
-				}
-			}
-		}
+				ofstream vOut("Output.txt", ios::out | ios::trunc);
+				double x, y;
+				vOut << setw(12) << "x" << setw(12) << "y" << setw(20) << "vorticity"
+				<< setw(20) << "stream function" << endl;
 
-		/** Write boundary values */
-		int pt, pb, pl, pr;
-		pt = pb = pl = pr = 0;
-		for (int k = 0; k < Px * Py; k++)
-		{
-			// bottom
-			if (k < Px)
-			{
-				y = 0.0;
-				for (int i = 0; i < NX[k]; i++)
-				{
-					x = start_x[k] + i*dx;
-					vOut << setw(12) << x << setw(12) << y << setw(20) << V_bot[pb] 
+				vOut << setw(12) << 0.0 << setw(12) << 0.0 << setw(20) << 0.0 
 					<< setw(20) << 0.0 << endl;
-					pb++;
-				}		
-			}
-			// top
-			if (k >= Px*(Py-1) )
-			{
-				y = Ly;
-				for (int i = 0; i < NX[k]; i++)
-				{
-					x = start_x[k] + i*dx;
-					vOut << setw(12) << x << setw(12) << y << setw(20) << V_top[pt] 
+				vOut << setw(12) << 0.0 << setw(12) << Ly << setw(20) << 0.0 
 					<< setw(20) << 0.0 << endl;
-					pt++;
-				}		
-			}
-			// left
-			if (k % Px == 0)
-			{
-				x = 0.0;
-				for (int j = 0; j < NY[k]; j++)
-				{
-					y = start_y[k] + j*dy;
-					vOut << setw(12) << x << setw(12) << y << setw(20) << V_left[pl] 
+				vOut << setw(12) << Lx << setw(12) << 0.0 << setw(20) << 0.0 
 					<< setw(20) << 0.0 << endl;
-					pl++;
-
-				}
+				vOut << setw(12) << Lx << setw(12) << Ly << setw(20) << 0.0 
+					<< setw(20) << 0.0 << endl;
+				vOut.close();
 			}
-			// right
-			if ((k+1) % Px == 0)
-			{
-				x = Lx;
-				for (int j = 0; j < NY[k]; j++)
-				{
-					y = start_y[k] + j*dy;
-					vOut << setw(12) << x << setw(12) << y << setw(20) <<
-					       	V_right[pr] << setw(20) << 0.0 << endl;
-					pr++;
 
-				}
-			}
-		}
-
-		// corner
-		vOut << setw(12) << 0.0 << setw(12) << 0.0 << setw(20) << 0.0 
-				<< setw(20) << 0.0 << endl;
-		vOut << setw(12) << 0.0 << setw(12) << Ly << setw(20) << 0.0 
-				<< setw(20) << 0.0 << endl;
-		vOut << setw(12) << Lx << setw(12) << 0.0 << setw(20) << 0.0 
-				<< setw(20) << 0.0 << endl;
-		vOut << setw(12) << Lx << setw(12) << Ly << setw(20) << 0.0 
-				<< setw(20) << 0.0 << endl;
-
-		vOut.close();
-	}
-}
-
-
-
-
-
-
-void LidDrivenCavity::OUTPUT(int Px, int Py, double Lx, double Ly)
-{
-	for (int k = 0; k < size; k++)
-	{
-		if (k == 0 && rank == 0)
-		{
-			ofstream vOut("Output.txt", ios::out | ios::trunc);
+			ofstream vOut("Output.txt", ios::out | ios::app);
 			double x, y;
-			/** Write header */
-			vOut << setw(12) << "x" << setw(12) << "y" << setw(20) << "vorticity"
-			<< setw(20) << "stream function" << endl;
-			/** Write corner values */
-			vOut << setw(12) << 0.0 << setw(12) << 0.0 << setw(20) << 0.0 
-				<< setw(20) << 0.0 << endl;
-			vOut << setw(12) << 0.0 << setw(12) << Ly << setw(20) << 0.0 
-				<< setw(20) << 0.0 << endl;
-			vOut << setw(12) << Lx << setw(12) << 0.0 << setw(20) << 0.0 
-				<< setw(20) << 0.0 << endl;
-			vOut << setw(12) << Lx << setw(12) << Ly << setw(20) << 0.0 
-				<< setw(20) << 0.0 << endl;
-
 			/** Write interior values */
 			vOut.precision(6);
 			for (int i = 0; i < Nx; i++)
@@ -775,78 +532,53 @@ void LidDrivenCavity::OUTPUT(int Px, int Py, double Lx, double Ly)
 						<< setw(20) << s[i*Ny + j] << endl;
 				}
 			}
-			
-			vOut.close();
-		}
-		else if (k == rank)
-		{
-			ofstream vOut("Output.txt", ios::out | ios::app);
-			double x, y;
-			/** Write interior values */
-			vOut.precision(6);
-			for (int i = 0; i < Nx; i++)
+			/** Write boundary values */
+			// top 
+			if (coords[0] == Py - 1)
 			{
-				for (int j = 0; j < Ny; j++)
-				{	
+				y = Ly;
+				for (int i = 0; i < Nx; i++)
+				{
 					x = start[0] + i*dx;
+					vOut << setw(12) << x << setw(12) << y << setw(20) << v_top[i] 
+					<< setw(20) << 0.0 << endl;
+				}		
+			}
+			// left
+			if (coords[1] == 0)
+			{
+				x = 0;
+				for (int j = 0; j < Ny; j++)
+				{
 					y = start[1] + j*dy;
-					vOut << setw(12) << x << setw(12) << y << setw(20) << v[i*Ny + j] 					
-						<< setw(20) << s[i*Ny + j] << endl;
-				}
+					vOut << setw(12) << x << setw(12) << y << setw(20) << v_left[j] 
+					<< setw(20) << 0.0 << endl;
+				}		
+			}
+			// bottom
+			if (coords[0] == 0)
+			{
+				y = 0;
+				for (int i = 0; i < Nx; i++)
+				{
+					x = start[0] + i*dx;
+					vOut << setw(12) << x << setw(12) << y << setw(20) << v_bot[i] 
+					<< setw(20) << 0.0 << endl;
+				}		
+			}
+			// left
+			if (coords[1] == Px - 1)
+			{
+				x = Lx;
+				for (int j = 0; j < Ny; j++)
+				{
+					y = start[1] + j*dy;
+					vOut << setw(12) << x << setw(12) << y << setw(20) << v_right[j] 
+					<< setw(20) << 0.0 << endl;
+				}		
 			}
 			vOut.close();
 		}
 		MPI_Barrier(mygrid);
 	}
-
-
-	/** Write boundary values */
-		ofstream vOut("Output.txt", ios::out | ios::app);
-		double x, y;
-
-		// top 
-		if (coords[0] == Py - 1)
-		{
-			y = Ly;
-			for (int i = 0; i < Nx; i++)
-			{
-				x = start[0] + i*dx;
-				vOut << setw(12) << x << setw(12) << y << setw(20) << v_top[i] 
-				<< setw(20) << 0.0 << endl;
-			}		
-		}
-		// left
-		if (coords[1] == 0)
-		{
-			x = 0;
-			for (int j = 0; j < Ny; j++)
-			{
-				y = start[1] + j*dy;
-				vOut << setw(12) << x << setw(12) << y << setw(20) << v_left[j] 
-				<< setw(20) << 0.0 << endl;
-			}		
-		}
-		// bottom
-		if (coords[0] == 0)
-		{
-			y = 0;
-			for (int i = 0; i < Nx; i++)
-			{
-				x = start[0] + i*dx;
-				vOut << setw(12) << x << setw(12) << y << setw(20) << v_bot[i] 
-				<< setw(20) << 0.0 << endl;
-			}		
-		}
-		// left
-		if (coords[1] == Px - 1)
-		{
-			x = Lx;
-			for (int j = 0; j < Ny; j++)
-			{
-				y = start[1] + j*dy;
-				vOut << setw(12) << x << setw(12) << y << setw(20) << v_right[j] 
-				<< setw(20) << 0.0 << endl;
-			}		
-		}
-		vOut.close();
 }

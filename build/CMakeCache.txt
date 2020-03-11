@@ -100,7 +100,7 @@ CMAKE_AR:FILEPATH=/usr/bin/ar
 
 //Choose the type of build, options are: None Debug Release RelWithDebInfo
 // MinSizeRel ...
-CMAKE_BUILD_TYPE:STRING=Debug
+CMAKE_BUILD_TYPE:STRING=Release
 
 //Enable/Disable color output during build.
 CMAKE_COLOR_MAKEFILE:BOOL=ON
@@ -442,6 +442,8 @@ Boost_PROGRAM_OPTIONS_LIBRARY_DEBUG-ADVANCED:INTERNAL=1
 Boost_PROGRAM_OPTIONS_LIBRARY_RELEASE-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_AR
 CMAKE_AR-ADVANCED:INTERNAL=1
+//MODIFIED property for variable: CMAKE_BUILD_TYPE
+CMAKE_BUILD_TYPE-MODIFIED:INTERNAL=ON
 //This is the directory where this CMakeCache.txt was created
 CMAKE_CACHEFILE_DIR:INTERNAL=/home/yl1019/lyh/Coursework/build
 //Major version of cmake used to create the current loaded cache
@@ -605,6 +607,8 @@ LAPACK_flame_LIBRARY-ADVANCED:INTERNAL=1
 LAPACK_goto2_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: LAPACK_lapack_LIBRARY
 LAPACK_lapack_LIBRARY-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: LAPACK_lapack_WORKS
+LAPACK_lapack_WORKS-ADVANCED:INTERNAL=1
 //Have function cheev_
 LAPACK_lapack_WORKS:INTERNAL=1
 //ADVANCED property for variable: LAPACK_openblas_LIBRARY

@@ -5,6 +5,17 @@ using namespace std;
 
 #include "PoissonSolver.h"
 #include "cblas.h"
+
+
+#define F77NAME(x) x##_
+extern "C"
+{
+	void F77NAME(dpbtrf) (const char &UPLO, const int &N, const int &KD, const double *AB,
+		       const int &LDAB,	int &INFO);
+	void F77NAME(dpbtrs) (const char &UPLO, const int &N, const int &KD, const int &NRHS,
+		       	const double *AB, const int &LDAB, double *B, const int &LDB, int &INFO);
+}
+
 /**
  * @brief Constructor
  * @param Nx	number of grid points in x direction
@@ -32,13 +43,23 @@ PoissonSolver::PoissonSolver(const int &Nx, const int &Ny, const double &dx, con
 		A[lda-1 + j*lda] = A_DiagVal;
 		if (j % Ny != 0)   A[lda-2 + j*lda] = A_SubDiagVal;
 		if (j >= Ny)       A[j * lda] = A_OffDiagVal;
-	}	
+	}
+	info = 1;	
 }
+
 
 PoissonSolver::~PoissonSolver()
 {
 	delete[] b;
 	delete[] A;
+}
+
+/**
+ * @brief Cholesky Factorization of matrix A, to avoid doing this multiple times
+ */
+void PoissonSolver::CholeskyFactor()
+{
+	F77NAME(dpbtrf) ('U', size , Ny, A, lda, info);
 }
 
 /**
@@ -70,11 +91,10 @@ void PoissonSolver::SetBoundary(const double *top, const double *left, const dou
  * @param x	initial guess of the solution vector
  * @param f	Source vector 
  */
-void PoissonSolver::Solve(double *x, const double *f)
+void PoissonSolver::Solve_Conj(double *x, const double *f)
 {
 	if (cblas_dnrm2(size, f, 1) == 0 && cblas_dnrm2(size, f, 1) == 0)
 	{
-		memset(x, 0.0, size*sizeof(double));
 		return;
 	}	
 
@@ -114,4 +134,14 @@ void PoissonSolver::Solve(double *x, const double *f)
 	delete[] t;
 }
 
-
+void PoissonSolver::Solve_Chol(double *x, const double *f)
+{
+	/// Only do the factorization once
+	if (info != 0)	CholeskyFactor();
+	/// Set RHS vector
+	cblas_daxpy(size, -1.0, f, 1, b, 1);
+	cblas_dscal(size, -1.0, b, 1);
+	/// Solve Ax = RHS
+	F77NAME(dpbtrs) ('U', size, Ny, 1, A, lda, b, size, info);
+	cblas_dcopy(size, b, 1, x, 1);
+}

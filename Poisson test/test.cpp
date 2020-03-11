@@ -49,8 +49,8 @@ int main()
 
 	PoissonSolver test(Nx, Ny, dx, dy);
 	test.SetBoundary(top, left, bot, right);
-	//test.Solvelapack(x, f);
-	test.Solve(x, f);
+	test.Solve_Chol(x, f);
+	//test.Solve_Conj(x, f);
 
 	
 	// output

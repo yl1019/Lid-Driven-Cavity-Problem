@@ -6,33 +6,23 @@
 
 #IncludeRegexTransform: 
 
-/home/yl1019/lyh/Coursework/LidDrivenCavity.cpp
-iostream
--
-fstream
--
-iomanip
+/home/yl1019/lyh/Coursework/PoissonSolver.cpp
+cmath
 -
 cstring
 -
-mpi.h
+iostream
 -
-LidDrivenCavity.h
-/home/yl1019/lyh/Coursework/LidDrivenCavity.h
+PoissonSolver.h
+/home/yl1019/lyh/Coursework/PoissonSolver.h
 cblas.h
 /home/yl1019/lyh/Coursework/cblas.h
-PoissonSolver.h
-/home/yl1019/lyh/Coursework/PoissonSolver.h
-
-/home/yl1019/lyh/Coursework/LidDrivenCavity.h
-string
--
 mpi.h
--
-PoissonSolver.h
-/home/yl1019/lyh/Coursework/PoissonSolver.h
+/home/yl1019/lyh/Coursework/mpi.h
 
 /home/yl1019/lyh/Coursework/PoissonSolver.h
+mpi.h
+/home/yl1019/lyh/Coursework/mpi.h
 
 /usr/lib/x86_64-linux-gnu/openmpi/include/mpi.h
 stddef.h

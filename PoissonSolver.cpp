@@ -5,7 +5,7 @@ using namespace std;
 
 #include "PoissonSolver.h"
 #include "cblas.h"
-
+#include "mpi.h"
 
 #define F77NAME(x) x##_
 extern "C"
@@ -23,9 +23,13 @@ extern "C"
  * @param dx	element size in x direction
  * @param dy	element size in y direction
  */
-PoissonSolver::PoissonSolver(const int &Nx, const int &Ny, const double &dx, const double &dy)
+PoissonSolver::PoissonSolver(MPI_Comm mygrid, int *neighbor, int rank, const int &Nx,
+	       	const int &Ny, const double &dx, const double &dy)
 {
 	/// accept the input parameter
+	this->mygrid =mygrid;
+	memcpy(this->neighbor, neighbor, 4*sizeof(double));
+	this->rank = rank;
 	this->Nx = Nx;
 	this->Ny = Ny;
 	this->dx = dx;
@@ -44,7 +48,14 @@ PoissonSolver::PoissonSolver(const int &Nx, const int &Ny, const double &dx, con
 		if (j % Ny != 0)   A[lda-2 + j*lda] = A_SubDiagVal;
 		if (j >= Ny)       A[j * lda] = A_OffDiagVal;
 	}
-	info = 1;	
+	info = 1;
+
+	x_top = new double[Nx]();
+	x_bot = new double[Nx]();
+	x_left = new double[Ny]();
+	x_right = new double[Ny]();
+	flag = 0;
+	FLAG = 0;
 }
 
 
@@ -52,6 +63,10 @@ PoissonSolver::~PoissonSolver()
 {
 	delete[] b;
 	delete[] A;
+	delete[] x_left;
+	delete[] x_right;
+	delete[] x_top;
+	delete[] x_bot;
 }
 
 /**
@@ -63,7 +78,36 @@ void PoissonSolver::CholeskyFactor()
 }
 
 /**
- * @brief Accept boundary conditions from 4 direction and construct boundary vector b
+ * @brief Send and receive stream function to neighbor domains
+ */
+void PoissonSolver::SendAndRecv(double *x)
+{
+	/** Left to right */
+	MPI_Sendrecv(x + (Nx-1)*Ny, Ny, MPI_DOUBLE, neighbor[3], 3, x_left, Ny,
+				MPI_DOUBLE, neighbor[1], 3, mygrid, MPI_STATUS_IGNORE);
+
+	/** Right to left */
+	MPI_Sendrecv(x, Ny, MPI_DOUBLE, neighbor[1], 1, x_right, Ny,
+			MPI_DOUBLE, neighbor[3], 1, mygrid, MPI_STATUS_IGNORE);
+
+	/** Top to bottom */
+	// extract temporary bottom boundary vector
+	double temp_bot[Nx];
+	cblas_dcopy(Nx, x, Ny, temp_bot, 1);
+	MPI_Sendrecv(temp_bot, Nx, MPI_DOUBLE, neighbor[2], 2, x_top, Nx,
+			MPI_DOUBLE, neighbor[0], 2, mygrid, MPI_STATUS_IGNORE);
+
+	/** Bottom to top */
+	// extract temporary top boundary vector
+	double temp_top[Nx];
+	cblas_dcopy(Nx, x + Ny-1, Ny, temp_top, 1);
+	MPI_Sendrecv(temp_top, Nx, MPI_DOUBLE, neighbor[0], 0, x_bot, Nx,
+			MPI_DOUBLE, neighbor[2], 0, mygrid, MPI_STATUS_IGNORE);
+
+}
+
+/**
+ * @brief Setter for accepting boundary conditions from 4 direction 
  * @param top	top boundary vector
  * @param left	left boundary vector
  * @param bot	bottom boundary vector
@@ -71,24 +115,35 @@ void PoissonSolver::CholeskyFactor()
  */
 void PoissonSolver::SetBoundary(const double *top, const double *left, const double *bot, const double *right)
 {	
+	cblas_dcopy(Nx, top, 1, x_top, 1);
+	cblas_dcopy(Nx, bot, 1, x_bot, 1);
+	cblas_dcopy(Ny, left, 1, x_left, 1);
+	cblas_dcopy(Ny, right, 1, x_right, 1);
+}
+
+/**
+ * @brief Build boundary vector b
+ */   
+void PoissonSolver::BoundaryVector()
+{
 	b = new double[size];
 	memset(b, 0.0, size*sizeof(double));
 	for (int i = 0; i < Ny; i++)
 	{
-		b[i] += left[i] * A_OffDiagVal;
-		b[i+(Nx-1)*Ny] += right[i] * A_OffDiagVal;
+		b[i] += x_left[i] * A_OffDiagVal;
+		b[i+(Nx-1)*Ny] += x_right[i] * A_OffDiagVal;
 	}
 	for (int i = 0; i < Nx; i++)
 	{
-		b[i*Ny] += bot[i] * A_SubDiagVal;
-		b[i*Ny + Ny-1] += top[i] * A_SubDiagVal;
+		b[i*Ny] += x_bot[i] * A_SubDiagVal;
+		b[i*Ny + Ny-1] += x_top[i] * A_SubDiagVal;
 	}
 }
 
 
 /**
  * @brief Solve Poisson equation Ax = f - b using Conjugate Gradient Method, store solution in x
- * @param x	initial guess of the solution vector
+ * @param x	solution vector
  * @param f	Source vector 
  */
 void PoissonSolver::Solve_Conj(double *x, const double *f)
@@ -97,21 +152,22 @@ void PoissonSolver::Solve_Conj(double *x, const double *f)
 	{
 		return;
 	}	
-
 	double *r = new double[size];
 	double *p = new double[size];
 	double *t = new double[size]; ///< for temporary use
 	double alpha;
 	double beta;
-	double eps;
-	double tol = 0.00001;	///< tolerance for termination
-	cblas_dcopy(size, f, 1, r, 1);	///< r0 = f
-	cblas_daxpy(size, -1.0, b, 1, r, 1);	///< r0 = r0 - b
-	cblas_dsbmv(CblasColMajor, CblasUpper, size, Ny,-1.0, A, lda, x, 1, 1.0, r, 1);	///< r0 = b - Ax0
-	cblas_dcopy(size, r, 1, p, 1);	///< p0 = r0
+	double tol = 0.0001;	///< tolerance for termination
 	int k = 0;
+
 	do
 	{
+		BoundaryVector();
+		cblas_dcopy(size, f, 1, r, 1);	///< r0 = f
+		cblas_daxpy(size, -1.0, b, 1, r, 1);	///< r0 = r0 - b
+		cblas_dsbmv(CblasColMajor, CblasUpper, size, Ny,-1.0, A, lda, x, 1, 1.0, r, 1);	///< r0 = b - Ax0
+		cblas_dcopy(size, r, 1, p, 1);	///< p0 = r0
+
 		cblas_dsbmv(CblasColMajor, CblasUpper, size, Ny, 1.0, A, lda, p, 1, 0.0, t, 1);	///< t = A*p_k
 		alpha = cblas_ddot(size, t, 1, p, 1);	///< alpha = p_k^T * A * p_k
 		beta = cblas_ddot(size, r, 1, r, 1);	///< beta = r_k^T * r_k 
@@ -120,14 +176,22 @@ void PoissonSolver::Solve_Conj(double *x, const double *f)
 		cblas_daxpy(size, -alpha, t, 1, r, 1); 	///< r_{k+1} = r_k - alpha_k * t
 		/// Take norm2 as the criteria of iteration
 		eps = cblas_dnrm2(size, r, 1);
-		if (eps < tol*tol) break;
+		if (eps < tol*tol)
+		{
+			flag = 1;
+			MPI_Reduce(&flag, &FLAG, 1, MPI_INT, MPI_PROD, 0, mygrid);
+			if (rank == 0) flag = FLAG;
+			MPI_Bcast(&flag, 1, MPI_INT, 0, mygrid);	
+		}
+		SendAndRecv(x);
+		if (flag == 1) break;
 		beta = cblas_ddot(size, r, 1, r, 1) / beta;	///< beta_k = r_{k+1}^T * r_{k+1} / dbeta
 		cblas_dcopy(size, r, 1, t, 1);	///< t = r_{k+1}, avoid overwritting r 
 		cblas_daxpy(size, beta, p, 1, t, 1);	///< t = t + beta_k * p_k
 		cblas_dcopy(size, t, 1, p, 1);	///< p_{k+1} = t;
 		
 		k++;
-	}while(k < 500);	///< maximum iteration time
+	}while(1);	///< maximum iteration time
 	
 	delete[] r;
 	delete[] p;
@@ -145,3 +209,5 @@ void PoissonSolver::Solve_Chol(double *x, const double *f)
 	F77NAME(dpbtrs) ('U', size, Ny, 1, A, lda, b, size, info);
 	cblas_dcopy(size, b, 1, x, 1);
 }
+
+

@@ -389,10 +389,10 @@ void LidDrivenCavity::VorticityUpdate()
 void LidDrivenCavity::SolvePoisson()
 {
 	/// Create a new PoissonSolver instance and solve Poisson problem
-	if (ps == nullptr)    ps = new PoissonSolver(Nx, Ny, dx, dy);
+	if (ps == nullptr)    ps = new PoissonSolver(mygrid, neighbor, rank, Nx, Ny, dx, dy);
 	ps->SetBoundary(s_top, s_left, s_bot, s_right);
-	ps->Solve_Chol(s, v);
-	//ps->Solve_Conj(s, v);
+	//ps->Solve_Chol(s, v);
+	ps->Solve_Conj(s, v);
 }
 
 /**
@@ -475,11 +475,8 @@ void LidDrivenCavity::Solve()
 		SendAndRecv_v();
 		VorticityUpdate();
 		
-		for (int i = 0; i < 5; i++)
-		{
-			SolvePoisson();
-			SendAndRecv_s();
-		}
+		SolvePoisson();
+
 		t += dt;
 	}
 }

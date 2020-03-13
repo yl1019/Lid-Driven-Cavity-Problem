@@ -5,6 +5,7 @@ using namespace std;
 
 #include "PoissonSolver.h"
 #include "cblas.h"
+<<<<<<< HEAD
 #include "mpi.h"
 
 #define F77NAME(x) x##_
@@ -16,6 +17,8 @@ extern "C"
 		       	const double *AB, const int &LDAB, double *B, const int &LDB, int &INFO);
 }
 
+=======
+>>>>>>> parent of 940f1f8... (1) Parallel program works fine, but really slow.
 /**
  * @brief Constructor
  * @param Nx	number of grid points in x direction
@@ -47,6 +50,7 @@ PoissonSolver::PoissonSolver(MPI_Comm mygrid, int *neighbor, int rank, const int
 		A[lda-1 + j*lda] = A_DiagVal;
 		if (j % Ny != 0)   A[lda-2 + j*lda] = A_SubDiagVal;
 		if (j >= Ny)       A[j * lda] = A_OffDiagVal;
+<<<<<<< HEAD
 	}
 	info = 1;
 	x_top = new double[Nx]();
@@ -55,8 +59,10 @@ PoissonSolver::PoissonSolver(MPI_Comm mygrid, int *neighbor, int rank, const int
 	x_right = new double[Ny]();
 	flag = 0;
 	FLAG = 0;
+=======
+	}	
+>>>>>>> parent of 940f1f8... (1) Parallel program works fine, but really slow.
 }
-
 
 PoissonSolver::~PoissonSolver()
 {
@@ -69,6 +75,7 @@ PoissonSolver::~PoissonSolver()
 }
 
 /**
+<<<<<<< HEAD
  * @brief Cholesky Factorization of matrix A, to avoid doing this multiple times
  */
 void PoissonSolver::CholeskyFactor()
@@ -107,6 +114,9 @@ void PoissonSolver::SendAndRecv(double *x)
 
 /**
  * @brief Setter for accepting boundary conditions from 4 direction 
+=======
+ * @brief Accept boundary conditions from 4 direction and construct boundary vector b
+>>>>>>> parent of 940f1f8... (1) Parallel program works fine, but really slow.
  * @param top	top boundary vector
  * @param left	left boundary vector
  * @param bot	bottom boundary vector
@@ -145,10 +155,11 @@ void PoissonSolver::BoundaryVector()
  * @param x	solution vector
  * @param f	Source vector 
  */
-void PoissonSolver::Solve_Conj(double *x, const double *f)
+void PoissonSolver::Solve(double *x, const double *f)
 {
 	if (cblas_dnrm2(size, f, 1) == 0 && cblas_dnrm2(size, f, 1) == 0)
 	{
+		memset(x, 0.0, size*sizeof(double));
 		return;
 	}	
 	double *r = new double[size];
@@ -197,6 +208,7 @@ void PoissonSolver::Solve_Conj(double *x, const double *f)
 	delete[] t;
 }
 
+<<<<<<< HEAD
 void PoissonSolver::Solve_Chol(double *x, const double *f)
 {
 	BoundaryVector();
@@ -210,4 +222,6 @@ void PoissonSolver::Solve_Chol(double *x, const double *f)
 	cblas_dcopy(size, b, 1, x, 1);
 }
 
+=======
+>>>>>>> parent of 940f1f8... (1) Parallel program works fine, but really slow.
 

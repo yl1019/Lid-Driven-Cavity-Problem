@@ -34,12 +34,13 @@ public:
     void VorticityInterior();
     void VorticityUpdate();
     void SolvePoisson();
-    void SendAndRecv_v();
-    void SendAndRecv_s();
+    void SendAndRecv();
     void Solve();
 
     /** Methods for output */
-    void Output(int Px, int Py, double Lx, double Ly);
+    void Output(const double &Lx, const double &Ly, const int &Px, const int &Py,
+		     int globalNx, int globalNy);
+    void OUTPUT(int Px, int Py, double Lx, double Ly);
 
 private: 
     /** MPI configuration */

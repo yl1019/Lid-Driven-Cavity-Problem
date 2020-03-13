@@ -471,10 +471,8 @@ void LidDrivenCavity::Solve()
 		if (rank == 0) cout << "t = " << t << endl;
 		VorticityBCs();
 		VorticityInterior();
-
 		SendAndRecv_v();
-		VorticityUpdate();
-		
+		VorticityUpdate();		
 		SolvePoisson();
 		SendAndRecv_s();
 		t += dt;

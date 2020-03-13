@@ -86,11 +86,11 @@ int main(int argc, char **argv)
 	}
 	/// Run the solver
         solver->Solve();
-
 	/// Output the result
-	solver->Output(Px, Py, Lx, Ly);
+	solver->OUTPUT(Px, Py, Lx, Ly);
 	//solver->Output(Lx, Ly, Px, Py, Nx-2, Ny-2);
-	
+
+
 	/// Exit
 	MPI_Finalize();
 	return 0;

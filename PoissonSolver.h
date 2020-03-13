@@ -4,7 +4,7 @@
 #include "mpi.h"
 /**
  * @class PoissonSolver
- * @brief Solving the poisson problem Ax + b = f using Conjugate Gradient algorithm / Cholesky factorization
+ * @brief Solving the poisson problem Ax + b = f using Conjugate Gradient algorithm
  */
 class PoissonSolver
 {
@@ -12,6 +12,7 @@ public:
 	PoissonSolver(MPI_Comm mygrid, int *neighbor, int rank, const int &Nx,
 		       	const int &Ny, const double &dx, const double &dy);
 	~PoissonSolver();
+<<<<<<< HEAD
 	void BoundaryVector();
 	void SendAndRecv(double *x);
 	void SetBoundary(const double *top, const double *left,
@@ -19,6 +20,11 @@ public:
 	void Solve_Conj(double *x, const double *f);
 	void CholeskyFactor();
 	void Solve_Chol(double *x, const double *f);
+=======
+	void SetBoundary(const double *top, const double *left, const double *bot, const double *right);
+	void Solve(double *x, const double *f);
+
+>>>>>>> parent of 940f1f8... (1) Parallel program works fine, but really slow.
 private:
 	/** MPI configuration */
 	MPI_Comm mygrid;
@@ -31,7 +37,7 @@ private:
 	int Ny;
 	double dx;
 	double dy;
-	int size, info;     
+	int size;     
 
 	int FLAG;	///< FLAG for root process
 	int flag;	///< flag for stop iteration, 1 for stop and 0 for keep going

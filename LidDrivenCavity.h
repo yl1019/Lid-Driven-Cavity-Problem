@@ -34,9 +34,11 @@ public:
     void VorticityInterior();
     void VorticityUpdate();
     void SolvePoisson();
+    void SendAndRecv(double *x, double *x_top, double *x_left, double *bot, double *right);
     void SendAndRecv_v();
     void SendAndRecv_s();
     void Solve();
+    void GetVelocity();
 
     /** Methods for output */
     void Output(int Px, int Py, double Lx, double Ly);
@@ -60,6 +62,11 @@ private:
     double *s_left = nullptr;
     double *s_bot = nullptr;
     double *s_right = nullptr;
+
+    double *s_old = nullptr;	///< store stream function each step to obtain residual
+    double *Vx =nullptr;	///< horizontal velocity 
+    double *Vy =nullptr;	///< vertical velocity
+    
 
     /** User input parameters for each partition */
     double dt;	///< time step size

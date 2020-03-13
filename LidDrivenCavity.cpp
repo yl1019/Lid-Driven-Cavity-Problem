@@ -8,6 +8,10 @@
 #include "cblas.h"
 #include "PoissonSolver.h"
 
+#define FORMAT(vOut, x, y, v, s, Vx, Vy) \
+	vOut << setw(10) << x << setw(10) << y << setw(12) << v \
+	<< setw(12) << s << setw(12) << Vx << setw(12) << Vy << endl;
+
 /* Constructor and destructor
 ======================================================================== */
 LidDrivenCavity::LidDrivenCavity(MPI_Comm mygrid, int rank, int *coords, double *start, int *neighbor,
@@ -231,12 +235,15 @@ void LidDrivenCavity::BoundaryVector(double *b, char matrix, char x)
  */
 void LidDrivenCavity::Initialise()
 {
-	/// Allocating interior memory and initialize to zero
+	/** Allocating interior memory and initialize to zero */
 	v = new double[size];
 	s = new double[size];	
 	memset(v, 0.0, size*sizeof(double));	
-	memset(s, 0.0, size*sizeof(double));	
-	/// Allocate the boundary memory and initialize to zero
+	memset(s, 0.0, size*sizeof(double));
+	s_old = new double[size]();
+	Vx = new double[size]();
+	Vy = new double[size]();	
+	/** Allocate the boundary memory and initialize to zero */
 	v_top = new double[Nx];
 	v_bot = new double[Nx];
 	v_left = new double[Ny];
@@ -398,63 +405,33 @@ void LidDrivenCavity::SolvePoisson()
 /**
  * @brief Send and receive stream function to neighbor domains
  */
-void LidDrivenCavity::SendAndRecv_s()
+void LidDrivenCavity::SendAndRecv(double *x, double *x_top, double *x_left,
+	       	double *x_bot, double *x_right)
 {
 	/** Left to right */
-	MPI_Sendrecv(s + (Nx-1)*Ny, Ny, MPI_DOUBLE, neighbor[3], 3, s_left, Ny,
+	MPI_Sendrecv(x + (Nx-1)*Ny, Ny, MPI_DOUBLE, neighbor[3], 3, x_left, Ny,
 			MPI_DOUBLE, neighbor[1], 3, mygrid, MPI_STATUS_IGNORE);
 
 	/** Right to left */
-	MPI_Sendrecv(s, Ny, MPI_DOUBLE, neighbor[1], 1, s_right, Ny,
+	MPI_Sendrecv(x, Ny, MPI_DOUBLE, neighbor[1], 1, x_right, Ny,
 			MPI_DOUBLE, neighbor[3], 1, mygrid, MPI_STATUS_IGNORE);
 
 	/** Top to bottom */
 	// extract temporary bottom boundary vector
 	double temp_bot[Nx];
-	cblas_dcopy(Nx, s, Ny, temp_bot, 1);
+	cblas_dcopy(Nx, x, Ny, temp_bot, 1);
 
-	MPI_Sendrecv(temp_bot, Nx, MPI_DOUBLE, neighbor[2], 2, s_top, Nx,
+	MPI_Sendrecv(temp_bot, Nx, MPI_DOUBLE, neighbor[2], 2, x_top, Nx,
 			MPI_DOUBLE, neighbor[0], 2, mygrid, MPI_STATUS_IGNORE);
 
 	/** Bottom to top */
 	// extract temporary top boundary vector
 	double temp_top[Nx];
-	cblas_dcopy(Nx, s + Ny-1, Ny, temp_top, 1);
-	MPI_Sendrecv(temp_top, Nx, MPI_DOUBLE, neighbor[0], 0, s_bot, Nx,
+	cblas_dcopy(Nx, x + Ny-1, Ny, temp_top, 1);
+	MPI_Sendrecv(temp_top, Nx, MPI_DOUBLE, neighbor[0], 0, x_bot, Nx,
 			MPI_DOUBLE, neighbor[2], 0, mygrid, MPI_STATUS_IGNORE);
 
 }
-
-/**
- * @brief Send and receive vorticity to neighbor domains
- */
-void LidDrivenCavity::SendAndRecv_v()
-{
-	/** Left to right */
-	MPI_Sendrecv(v + (Nx-1)*Ny, Ny, MPI_DOUBLE, neighbor[3], 3, v_left, Ny,
-			MPI_DOUBLE, neighbor[1], 3, mygrid, MPI_STATUS_IGNORE);
-
-	/** Right to left */
-	MPI_Sendrecv(v, Ny, MPI_DOUBLE, neighbor[1], 1, v_right, Ny,
-			MPI_DOUBLE, neighbor[3], 1, mygrid, MPI_STATUS_IGNORE);
-
-	/** Top to bottom */
-	// extract temporary bottom boundary vector
-	double temp_bot[Nx];
-	cblas_dcopy(Nx, v, Ny, temp_bot, 1);
-
-	MPI_Sendrecv(temp_bot, Nx, MPI_DOUBLE, neighbor[2], 2, v_top, Nx,
-			MPI_DOUBLE, neighbor[0], 2, mygrid, MPI_STATUS_IGNORE);
-
-	/** Bottom to top */
-	// extract temporary top boundary vector
-	double temp_top[Nx];
-	cblas_dcopy(Nx, v + Ny-1, Ny, temp_top, 1);
-	MPI_Sendrecv(temp_top, Nx, MPI_DOUBLE, neighbor[0], 0, v_bot, Nx,
-			MPI_DOUBLE, neighbor[2], 0, mygrid, MPI_STATUS_IGNORE);
-
-}
-
 
 /* Solver 
 ======================================================================== */
@@ -466,23 +443,55 @@ void LidDrivenCavity::Solve()
 	LinearMatrices();
 	Initialise();
 	double t = 0.0;
+	double eps = 0.00001;	///< terminate criteria
+	double norm2_s;	///< 2-norm of stream function
+	double res;	///< residual, take 2-norm of stream function
+	double max_res;	///< maximum residual among the whole domain
 	while (t < T)
 	{
-		if (rank == 0) cout << "t = " << t << endl;
+		cblas_dcopy(size, s, 1, s_old, 1);	///< store stream function at last step
 		VorticityBCs();
 		VorticityInterior();
-
-		SendAndRecv_v();
+		SendAndRecv(v, v_top, v_left, v_bot, v_right);
 		VorticityUpdate();
-		
 		for (int i = 0; i < 5; i++)
 		{
 			SolvePoisson();
-			SendAndRecv_s();
+			SendAndRecv(s, s_top, s_left, s_bot, s_right);
 		}
 		t += dt;
+
+		norm2_s = cblas_dnrm2(size, s, 1);
+		cblas_daxpy(size, -1.0, s, 1, s_old, 1);
+		res = cblas_dnrm2(size, s_old, 1);
+		res /= norm2_s;
+		MPI_Reduce(&res, &max_res, 1, MPI_DOUBLE, MPI_MAX, 0, mygrid);
+		if (rank == 0)
+		{
+			 cout << "t = " << setw(8) << t << setw(15) << "Residual: " << max_res << endl;
+		}
+		MPI_Bcast(&max_res, 1, MPI_DOUBLE, 0, mygrid);
+		if(max_res < eps)
+		{
+			if (rank == 0) cout << "Terminate criteria reached, exit successfully." << endl;
+			break;
+		}
 	}
+	GetVelocity();
 }
+
+/**
+ * brief Get the velocity from stream function/vorticity
+ */
+void LidDrivenCavity::GetVelocity()
+{
+	BoundaryVector(Vx, 'B', 's');
+	cblas_dgbmv (CblasColMajor, CblasNoTrans, size, size, 1, 1, 1.0, B, ldb, s, 1, 1.0, Vx, 1);
+	BoundaryVector(Vy, 'C', 's');
+	cblas_dgbmv (CblasColMajor, CblasNoTrans, size, size, Ny, Ny, 1.0, C, ldc, s, 1, 1.0, Vy, 1);
+}
+
+
 
 /* Output 
 ======================================================================== */
@@ -503,33 +512,26 @@ void LidDrivenCavity::Output(int Px, int Py, double Lx, double Ly)
 			if (k == 0)
 			{
 				ofstream vOut("Output.txt", ios::out | ios::trunc);
-				double x, y;
-				vOut << setw(12) << "x" << setw(12) << "y" << setw(20) << "vorticity"
-				<< setw(20) << "stream function" << endl;
-
-				vOut << setw(12) << 0.0 << setw(12) << 0.0 << setw(20) << 0.0 
-					<< setw(20) << 0.0 << endl;
-				vOut << setw(12) << 0.0 << setw(12) << Ly << setw(20) << 0.0 
-					<< setw(20) << 0.0 << endl;
-				vOut << setw(12) << Lx << setw(12) << 0.0 << setw(20) << 0.0 
-					<< setw(20) << 0.0 << endl;
-				vOut << setw(12) << Lx << setw(12) << Ly << setw(20) << 0.0 
-					<< setw(20) << 0.0 << endl;
+				FORMAT(vOut, "x", "y", "v", "s", "Vx", "Vy");
+				FORMAT(vOut, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+				FORMAT(vOut, 0.0, Ly, 0.0, 0.0, 0.0, U);
+				FORMAT(vOut, Lx, 0.0, 0.0, 0.0, 0.0, 0.0);
+				FORMAT(vOut, Lx, Ly, 0.0, 0.0, 0.0, 0.0);	
 				vOut.close();
 			}
 
 			ofstream vOut("Output.txt", ios::out | ios::app);
 			double x, y;
 			/** Write interior values */
-			vOut.precision(6);
+			vOut.precision(5);
 			for (int i = 0; i < Nx; i++)
 			{
 				for (int j = 0; j < Ny; j++)
 				{	
 					x = start[0] + i*dx;
 					y = start[1] + j*dy;
-					vOut << setw(12) << x << setw(12) << y << setw(20) << v[i*Ny + j] 
-						<< setw(20) << s[i*Ny + j] << endl;
+					FORMAT(vOut, x, y, v[i*Ny + j], s[i*Ny + j],
+						       	Vx[i*Ny + j], Vy[i*Ny + j]);
 				}
 			}
 			/** Write boundary values */
@@ -540,8 +542,7 @@ void LidDrivenCavity::Output(int Px, int Py, double Lx, double Ly)
 				for (int i = 0; i < Nx; i++)
 				{
 					x = start[0] + i*dx;
-					vOut << setw(12) << x << setw(12) << y << setw(20) << v_top[i] 
-					<< setw(20) << 0.0 << endl;
+					FORMAT(vOut, x, y, v_top[i], 0.0, U, 0.0);
 				}		
 			}
 			// left
@@ -551,8 +552,7 @@ void LidDrivenCavity::Output(int Px, int Py, double Lx, double Ly)
 				for (int j = 0; j < Ny; j++)
 				{
 					y = start[1] + j*dy;
-					vOut << setw(12) << x << setw(12) << y << setw(20) << v_left[j] 
-					<< setw(20) << 0.0 << endl;
+					FORMAT(vOut, x, y, v_left[j], 0.0, 0.0, 0.0);
 				}		
 			}
 			// bottom
@@ -562,8 +562,7 @@ void LidDrivenCavity::Output(int Px, int Py, double Lx, double Ly)
 				for (int i = 0; i < Nx; i++)
 				{
 					x = start[0] + i*dx;
-					vOut << setw(12) << x << setw(12) << y << setw(20) << v_bot[i] 
-					<< setw(20) << 0.0 << endl;
+					FORMAT(vOut, x, y, v_bot[i], 0.0, 0.0, 0.0);
 				}		
 			}
 			// left
@@ -573,8 +572,7 @@ void LidDrivenCavity::Output(int Px, int Py, double Lx, double Ly)
 				for (int j = 0; j < Ny; j++)
 				{
 					y = start[1] + j*dy;
-					vOut << setw(12) << x << setw(12) << y << setw(20) << v_right[j] 
-					<< setw(20) << 0.0 << endl;
+					FORMAT(vOut, x, y, v_right[j], 0.0, 0.0, 0.0);
 				}		
 			}
 			vOut.close();
@@ -582,3 +580,5 @@ void LidDrivenCavity::Output(int Px, int Py, double Lx, double Ly)
 		MPI_Barrier(mygrid);
 	}
 }
+
+

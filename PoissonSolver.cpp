@@ -49,7 +49,6 @@ PoissonSolver::PoissonSolver(MPI_Comm mygrid, int *neighbor, int rank, const int
 		if (j >= Ny)       A[j * lda] = A_OffDiagVal;
 	}
 	info = 1;
-
 	x_top = new double[Nx]();
 	x_bot = new double[Nx]();
 	x_left = new double[Ny]();
@@ -200,6 +199,7 @@ void PoissonSolver::Solve_Conj(double *x, const double *f)
 
 void PoissonSolver::Solve_Chol(double *x, const double *f)
 {
+	BoundaryVector();
 	/// Only do the factorization once
 	if (info != 0)	CholeskyFactor();
 	/// Set RHS vector

@@ -391,8 +391,8 @@ void LidDrivenCavity::SolvePoisson()
 	/// Create a new PoissonSolver instance and solve Poisson problem
 	if (ps == nullptr)    ps = new PoissonSolver(mygrid, neighbor, rank, Nx, Ny, dx, dy);
 	ps->SetBoundary(s_top, s_left, s_bot, s_right);
-	//ps->Solve_Chol(s, v);
-	ps->Solve_Conj(s, v);
+	ps->Solve_Chol(s, v);
+	//ps->Solve_Conj(s, v);
 }
 
 /**
@@ -476,7 +476,7 @@ void LidDrivenCavity::Solve()
 		VorticityUpdate();
 		
 		SolvePoisson();
-
+		SendAndRecv_s();
 		t += dt;
 	}
 }
